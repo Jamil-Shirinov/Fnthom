@@ -1,0 +1,13 @@
+{
+  "humanCenteredAgent.checks": [
+    {
+      "id": "demo-tests",
+      "label": "Weather API tests",
+      "executable": "npm",
+      "args": ["test"],
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "invariantIds": ["inv-same-schema"]
+    }
+  ]
+}

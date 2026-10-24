@@ -21,7 +21,20 @@ Working stack: VS Code extension, TypeScript, React, React Flow, and Factory Dro
 └── tests/                 # Focused integration and behavior tests
 ```
 
-This is a folder scaffold; application code and build configuration have not been added yet. Directory README files describe ownership and where to begin. Use one root package for the extension and UI initially; separate source folders do not require a monorepo.
+MVP step 1 is in place: root tooling, shared schemas and plan validation, the host/webview protocol, a fake agent driven by the caching fixture, the panel with the React Flow map, and the demo app. Step proposals, applying edits, checks, persistence and the real Droid adapter come next (see [application-spec.md](agents/implementation/application-spec.md), section 14). Directory README files describe ownership.
+
+## Develop
+
+```bash
+npm install
+npm run build        # host bundle to dist/, webview to webview/dist/
+npm test             # Vitest: schemas, controller, fake agent, protocol
+npm run typecheck
+npm run dev:webview  # the UI in a browser with fixture data, no VS Code needed
+npm run package      # builds, then writes an installable .vsix
+```
+
+Press F5 in VS Code to open an Extension Development Host on `demo/app`, then run **Human-Centered Agent: Open Panel** from the Command Palette. The fake agent is on by default (`humanCenteredAgent.useFakeAgent`).
 
 ## Start here
 

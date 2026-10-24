@@ -1,0 +1,134 @@
+{
+  "name": "human-centered-agent",
+  "displayName": "Human-Centered Coding Agent",
+  "description": "Understand AI-generated code through a source-linked architecture map and conceptual implementation steps.",
+  "version": "0.0.1",
+  "publisher": "calhacks-13",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jamil-Shirinov/calhacks-13.0"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "humanCenteredAgent.open",
+        "title": "Open Panel",
+        "category": "Human-Centered Agent"
+      },
+      {
+        "command": "humanCenteredAgent.setApiKey",
+        "title": "Set Factory API Key",
+        "category": "Human-Centered Agent"
+      },
+      {
+        "command": "humanCenteredAgent.export",
+        "title": "Export Feature Reference",
+        "category": "Human-Centered Agent"
+      },
+      {
+        "command": "humanCenteredAgent.resetSession",
+        "title": "Reset Session",
+        "category": "Human-Centered Agent"
+      }
+    ],
+    "configuration": {
+      "title": "Human-Centered Agent",
+      "properties": {
+        "humanCenteredAgent.droidExecutablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to the droid CLI. Leave empty to discover it on PATH."
+        },
+        "humanCenteredAgent.modelId": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Droid model ID. Leave empty to use the account's default model."
+        },
+        "humanCenteredAgent.useFakeAgent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the deterministic fake agent with the caching fixture instead of Factory Droid."
+        },
+        "humanCenteredAgent.checks": {
+          "type": "array",
+          "default": [],
+          "description": "Checks the extension may run after applying a step. Each entry: id, label, executable, args, cwd (workspace-relative), timeoutMs, invariantIds.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "executable"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "executable": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "timeoutMs": {
+                "type": "number"
+              },
+              "invariantIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "dev": "node scripts/build-extension.mjs --watch & vite build --config webview/vite.config.ts --watch",
+    "dev:webview": "vite --config webview/vite.config.ts",
+    "build": "node scripts/build-extension.mjs && vite build --config webview/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "package": "npm run build && vsce package --no-dependencies",
+    "demo:reset": "git restore --source=HEAD --staged --worktree -- demo/app && git clean -fd -- demo/app/src demo/app/test"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@types/vscode": "1.90.0",
+    "@vitejs/plugin-react": "4.5.2",
+    "@vscode/vsce": "3.6.2",
+    "@xyflow/react": "12.8.6",
+    "esbuild": "0.25.12",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.8.3",
+    "vite": "6.3.7",
+    "vitest": "3.2.7"
+  }
+}
