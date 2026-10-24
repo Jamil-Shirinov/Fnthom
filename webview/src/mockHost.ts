@@ -1,10 +1,12 @@
 // Browser-only stand-in for the extension host, so the UI can be built without launching VS Code.
-// Planning runs the real scripted demo agent; implementation is simulated and ends on a pre-built graph
+// Planning runs the real scripted demo agent, and the Graph tab shows the accepted functions on the pre-built graph
+// of the demo before the feature. Implementation is simulated and ends on a pre-built graph
 // of the default designs (webview/src/fixtures/caching-graphs.json, from `npm run preview:fixture`).
 // Add ?fail=1 to the preview URL to make the check fail.
 
 import type { Decision } from "../../src/agent/adapter";
 import { FakeAgentAdapter } from "../../src/agent/fakeAdapter";
+import { projectPlan } from "../../src/workspace/plannedGraph";
 import { PROTOCOL_VERSION, type HostMessage } from "../../src/shared/messages";
 import { CodeGraph, emptyState, type AppliedFile, type ApplicationState, type FileSnapshot } from "../../src/shared/schema";
 import graphs from "./fixtures/caching-graphs.json";
@@ -35,10 +37,13 @@ export function createMockHost(deliver: (message: HostMessage) => void) {
     onActivity: (e: { kind: "status" | "tool" | "text"; message: string }) =>
       deliver({ protocolVersion: PROTOCOL_VERSION, type: "activity", payload: { operationId, ...e, at: new Date().toISOString() } }),
   });
+  const before = CodeGraph.parse(graphs.before);
+  const plannedGraph = () => ({ ...projectPlan(before, state.plan?.functions ?? []), builtAt: new Date().toISOString() });
   const wait = () => new Promise((resolve) => setTimeout(resolve, DELAY_MS * 2));
 
   const plan = async (phase: "planning" | "reworking", lastDecision: Decision | null) => {
     const operationId = begin({ phase });
+    set({ graph: plannedGraph() });
     const history = state.plan?.functions ?? [];
     const turn = await agent.planNext({ intent, context: CONTEXT, history, lastDecision }, options(operationId));
     const functions = turn.next ? [...history, { ...turn.next, status: "proposed" as const }] : history;
@@ -111,7 +116,7 @@ export function createMockHost(deliver: (message: HostMessage) => void) {
         return;
       }
       case "showGraph":
-        set({ graph: CodeGraph.parse(state.applied.length ? graphs.after : graphs.before) });
+        set({ graph: state.applied.length ? CodeGraph.parse(graphs.after) : plannedGraph() });
         return done();
       case "rerunChecks":
         return done();

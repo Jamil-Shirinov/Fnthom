@@ -157,6 +157,7 @@ export class AgentPanel implements vscode.Disposable {
     const node = this.controller.getState().graph?.nodes.find((n) => n.id === nodeId);
     const workspace = this.services.workspace;
     if (!workspace || !node) throw new Error("That function is no longer in the graph.");
+    if (node.planned && node.status === "new") return; // planned, so there is no code to open yet
 
     const doc = await vscode.workspace.openTextDocument(workspace.uri(node.path));
     // Serialized lines are one-based and inclusive; editor positions are zero-based.

@@ -21,15 +21,15 @@ Working stack: VS Code extension, TypeScript, React, React Flow, and Factory Dro
 └── tests/                 # Focused integration and behavior tests
 ```
 
-How it works: describe a feature, and the agent proposes it one function at a time. Accept each function or reject it (optionally saying why), and the agent reworks the rest of the plan around your rejection. When everything is planned, the extension writes the code, runs the project's tests, and shows a graph of how the functions connect. Click any function to see what it does and jump to its highlighted code. The agent is currently a scripted fake that knows the caching demo in `demo/app`; the real Factory Droid adapter comes next (see [application-spec.md](agents/implementation/application-spec.md)). Directory README files describe ownership.
+How it works: describe a feature, and the agent proposes it one function at a time. Accept each function or reject it (optionally saying why), and the agent reworks the rest of the plan around your rejection. The panel has a Decisions tab and a Graph tab; each accepted function shows up in the graph right away as a planned box. When everything is planned, the extension writes the code, runs the project's tests, and shows a graph of how the functions connect. Click any function to see what it does and jump to its highlighted code. The agent is currently a scripted fake that knows the caching demo in `demo/app`; the real Factory Droid adapter comes next (see [application-spec.md](agents/implementation/application-spec.md)). Directory README files describe ownership.
 
 ## Try it in VS Code
 
 You need VS Code 1.90 or later and Node.js 20 or later.
 
 ```bash
-npm install && npm run package          # writes human-centered-agent-0.1.1.vsix
-code --install-extension human-centered-agent-0.1.1.vsix
+npm install && npm run package          # writes human-centered-agent-0.1.2.vsix
+code --install-extension human-centered-agent-0.1.2.vsix
 cd demo/app && npm install              # the demo's tests are the check the extension runs
 code .
 ```

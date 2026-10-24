@@ -3,6 +3,7 @@
 // idle -> planning -> reviewing --accept--> planning -> ... (agent says the plan is complete)
 //                     reviewing --reject--> reworking -> reviewing
 //      -> implementing -> checking -> done
+// While planning, the graph is the current code plus the accepted functions, rebuilt every planning turn.
 // Failures go to needsAttention with a retry. One agent turn or mutation runs at a time, every action carries
 // the state revision the UI saw, and results from superseded or cancelled operations are dropped.
 
@@ -21,6 +22,7 @@ import {
 } from "../shared/schema";
 import { annotateGraph, buildCodeGraph } from "../workspace/codeGraph";
 import { validateChanges } from "../workspace/edits";
+import { projectPlan } from "../workspace/plannedGraph";
 import { MAX_SOURCE_BYTES, type WorkspacePort } from "../workspace/port";
 import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
 
@@ -134,7 +136,9 @@ export class SessionController {
     const operationId = this.begin({ phase: busyPhase });
     const intent = this.intent;
     try {
-      const context = await this.readContext();
+      const files = await this.sourceSnapshots();
+      await this.refreshPlannedGraph(operationId, files);
+      const context = contextOf(files);
       const history = this.state.plan?.functions ?? [];
       const raw = await this.agent.planNext({ intent, context, history, lastDecision: this.lastDecision }, this.callOptions(operationId));
       if (this.superseded(operationId)) return;
@@ -182,8 +186,9 @@ export class SessionController {
     const retry = () => this.implement(this.begin({ phase: "implementing" }));
     try {
       this.emitActivity(operationId, "status", "Reading the current code");
-      const context = await this.readContext();
-      this.baselineGraph = await this.graphOf();
+      const sources = await this.sourceSnapshots();
+      const context = contextOf(sources);
+      this.baselineGraph = buildCodeGraph(sources, { includeTests: true });
       const raw = await this.agent.implement({ intent: plan.intent, functions: plan.functions, context }, this.callOptions(operationId));
       if (this.superseded(operationId)) return;
 
@@ -320,11 +325,7 @@ export class SessionController {
   /** Rebuilds the graph quietly after the user edits code, so links keep pointing at the right lines. */
   async noteSourceChanged(): Promise<void> {
     if (!this.state.graph || this.state.operationId || this.writing) return;
-    const graph = annotateGraph(await this.graphOf(), {
-      baseline: this.baselineGraph,
-      planned: this.state.plan?.functions,
-      descriptions: this.descriptions,
-    });
+    const graph = this.decorate(await this.graphOf());
     if (!this.state.operationId) this.update({ graph: { ...graph, builtAt: new Date().toISOString() } });
   }
 
@@ -332,10 +333,9 @@ export class SessionController {
     this.emitActivity(operationId, "status", "Building the function graph");
     const files = await this.sourceSnapshots();
     const raw = buildCodeGraph(files, { includeTests: true });
-    const context = { baseline: this.baselineGraph, planned: this.state.plan?.functions, descriptions: this.descriptions };
-    let graph = annotateGraph(raw, context);
+    let graph = this.decorate(raw);
 
-    const missing = graph.nodes.filter((n) => !n.purpose).slice(0, MAX_DESCRIBED_NODES);
+    const missing = graph.nodes.filter((n) => !n.purpose && !n.planned).slice(0, MAX_DESCRIBED_NODES);
     if (missing.length) {
       try {
         const byPath = new Map(files.map((f) => [f.path, f.content.split("\n")]));
@@ -348,7 +348,7 @@ export class SessionController {
         const described = await this.agent.describe({ nodes }, this.callOptions(operationId));
         if (this.superseded(operationId)) return;
         for (const [id, text] of Object.entries(described)) if (typeof text === "string" && text.trim()) this.descriptions[id] = text.trim();
-        graph = annotateGraph(raw, { ...context, descriptions: this.descriptions });
+        graph = this.decorate(raw);
       } catch (err) {
         if (err instanceof AgentCancelledError) throw err;
         // Descriptions are a nicety; the graph is still accurate without them.
@@ -360,6 +360,23 @@ export class SessionController {
 
   private async graphOf(): Promise<Graph> {
     return buildCodeGraph(await this.sourceSnapshots(), { includeTests: true });
+  }
+
+  /** Statuses and purposes for the graph; before any code is written, the accepted plan is drawn on top of it. */
+  private decorate(raw: Graph): Graph {
+    const plan = this.state.plan;
+    const graph = annotateGraph(raw, { baseline: this.baselineGraph, planned: plan?.functions, descriptions: this.descriptions });
+    return plan && this.state.applied.length === 0 ? projectPlan(graph, plan.functions) : graph;
+  }
+
+  /** Keeps the Graph tab current while planning. A failure here never stops planning. */
+  private async refreshPlannedGraph(operationId: string, files: FileSnapshot[]) {
+    try {
+      const graph = this.decorate(buildCodeGraph(files, { includeTests: true }));
+      if (!this.superseded(operationId)) this.update({ graph: { ...graph, builtAt: new Date().toISOString() } });
+    } catch {
+      // The plan is still reviewable without a graph.
+    }
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -397,19 +414,6 @@ export class SessionController {
   private async sourceSnapshots(): Promise<FileSnapshot[]> {
     const paths = await this.workspace.listSourceFiles();
     return (await this.workspace.snapshot(paths)).filter((s) => s.exists && s.content.length <= MAX_SOURCE_BYTES);
-  }
-
-  /** Source the agent reads, smallest files first until the budget is spent. */
-  private async readContext(): Promise<FileSnapshot[]> {
-    const files = await this.sourceSnapshots();
-    const picked: FileSnapshot[] = [];
-    let bytes = 0;
-    for (const file of [...files].sort((a, b) => a.content.length - b.content.length)) {
-      if (bytes + file.content.length > MAX_CONTEXT_BYTES) break;
-      bytes += file.content.length;
-      picked.push(file);
-    }
-    return picked.sort((a, b) => a.path.localeCompare(b.path));
   }
 
   private requireIdle(action: string) {
@@ -455,6 +459,18 @@ export class SessionController {
     this.state = { ...this.state, ...patch, stateRevision: this.state.stateRevision + 1 };
     this.events.onState(this.state);
   }
+}
+
+/** Source the agent reads, smallest files first until the budget is spent. */
+function contextOf(files: FileSnapshot[]): FileSnapshot[] {
+  const picked: FileSnapshot[] = [];
+  let bytes = 0;
+  for (const file of [...files].sort((a, b) => a.content.length - b.content.length)) {
+    if (bytes + file.content.length > MAX_CONTEXT_BYTES) break;
+    bytes += file.content.length;
+    picked.push(file);
+  }
+  return picked.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 function errorText(err: unknown): string {

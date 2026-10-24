@@ -53,7 +53,7 @@ describe("planning one function at a time", () => {
   it("proposes a function, waits for a decision, and moves on when it is accepted", async () => {
     const ctx = setup();
     await ctx.controller.startFeature("Add caching", ctx.guard());
-    expect(ctx.states.map((s) => s.phase)).toEqual(["idle", "planning", "reviewing"]);
+    expect(ctx.states.map((s) => s.phase).filter((p, i, all) => p !== all[i - 1])).toEqual(["idle", "planning", "reviewing"]);
     expect(ctx.proposal().name).toBe("createTtlCache");
     expect(ctx.state().plan!.upcoming).toHaveLength(4);
     expect(ctx.activity.length).toBeGreaterThan(0);
@@ -61,6 +61,35 @@ describe("planning one function at a time", () => {
     await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard());
     expect(ctx.state().plan!.functions.map((f) => `${f.name}:${f.status}`)).toEqual(["createTtlCache:accepted", "cacheKey:proposed"]);
     expect(ctx.state().plan!.upcoming).toHaveLength(3);
+  });
+
+  it("adds each accepted function to the graph before any code is written", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    const ids = () => ctx.state().graph!.nodes.map((n) => n.id);
+    expect(ids()).toContain("src/app.ts#createApp");
+    expect(ctx.state().graph!.nodes.some((n) => n.planned)).toBe(false);
+
+    await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard());
+    const ttl = ctx.state().graph!.nodes.find((n) => n.id === "src/cache.ts#createTtlCache");
+    expect(ttl).toMatchObject({ planned: true, status: "new", purposeSource: "plan" });
+    expect(ctx.read("src/app.ts")).not.toMatch(/cache/i);
+
+    await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard()); // cacheKey
+    await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard()); // withCache
+    const graph = ctx.state().graph!;
+    const edge = (from: string, to: string) => graph.edges.find((e) => e.from === from && e.to === to);
+    expect(edge("src/cachedUpstream.ts#withCache", "src/cache.ts#cacheKey")).toMatchObject({ kind: "call", planned: true });
+    expect(edge("src/cachedUpstream.ts#withCache", "src/cache.ts#createTtlCache")).toMatchObject({ kind: "dispatch", planned: true });
+    expect(edge("src/app.ts#createApp", "src/cachedUpstream.ts#withCache")).toMatchObject({ planned: true });
+
+    await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard()); // createApp, an existing function
+    expect(ctx.state().graph!.nodes.find((n) => n.id === "src/app.ts#createApp")).toMatchObject({ planned: true, status: "changed" });
+
+    await decideAll(ctx);
+    expect(ctx.state().phase).toBe("done");
+    expect(ctx.state().graph!.nodes.some((n) => n.planned)).toBe(false);
+    expect(ctx.state().graph!.nodes.find((n) => n.id === "src/cache.ts#createTtlCache")?.status).toBe("new");
   });
 
   it("reworks the remaining plan after a rejection and keeps the rejected design in the history", async () => {

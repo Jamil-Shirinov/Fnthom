@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityEvent } from "../../src/shared/messages";
-import type { ApplicationState, Phase } from "../../src/shared/schema";
+import { currentProposal, type ApplicationState, type Phase } from "../../src/shared/schema";
 import { FunctionGraph } from "./components/FunctionGraph";
 import { PlanningView } from "./components/PlanningView";
 import { ResultPanel } from "./components/ResultPanel";
@@ -17,7 +17,10 @@ const PHASE_LABEL: Record<Phase, string> = {
   needsAttention: "Needs attention",
 };
 
-const PLANNING_PHASES: ReadonlySet<Phase> = new Set(["planning", "reviewing", "reworking", "implementing", "checking"]);
+/** Phases where switching to the Graph tab rebuilds the graph first, so it reflects the latest code and plan. */
+const REFRESH_PHASES: ReadonlySet<Phase> = new Set(["idle", "reviewing", "done"]);
+
+type Tab = "decisions" | "graph";
 
 const DEFAULT_INTENT = "Add caching so repeated weather requests do not hit the upstream forecast provider";
 
@@ -28,7 +31,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [intent, setIntent] = useState(DEFAULT_INTENT);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showTests, setShowTests] = useState(false);
-  const [showPlan, setShowPlan] = useState(false);
+  const [tab, setTab] = useState<Tab>("decisions");
+  const previousPhase = useRef<Phase | null>(null);
 
   useEffect(() => {
     const unsubscribe = bridge.subscribe((message) => {
@@ -47,6 +51,17 @@ export function App({ bridge }: { bridge: Bridge }) {
     bridge.send({ type: "ready", payload: {} });
     return unsubscribe;
   }, [bridge]);
+
+  // Show the result once the feature is written; after that the user switches tabs freely.
+  const phase = state?.phase ?? null;
+  useEffect(() => {
+    const previous = previousPhase.current;
+    previousPhase.current = phase;
+    if (phase === "done" && (previous === "implementing" || previous === "checking")) {
+      setSelectedId(null);
+      setTab("graph");
+    }
+  }, [phase]);
 
   const send = useCallback(
     (action: UiActionInput) => {
@@ -70,8 +85,11 @@ export function App({ bridge }: { bridge: Bridge }) {
   const busy = state.operationId !== null;
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const latest = activity.filter((a) => a.operationId === state.operationId).at(-1)?.message ?? null;
-  const planning = PLANNING_PHASES.has(state.phase) || (state.phase === "needsAttention" && !!state.plan && !state.graph);
-  const graphView = !!state.graph && !planning && !showPlan;
+  const waiting = state.phase === "reviewing" ? currentProposal(state.plan) : null;
+  const openTab = (next: Tab) => {
+    setTab(next);
+    if (next === "graph" && !busy && REFRESH_PHASES.has(state.phase)) send({ type: "showGraph", payload: guard });
+  };
 
   return (
     <div className="app">
@@ -81,7 +99,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           onSubmit={(event) => {
             event.preventDefault();
             setSelectedId(null);
-            setShowPlan(false);
+            setTab("decisions");
             setActivity([]);
             send({ type: "startFeature", payload: { ...guard, intent } });
           }}
@@ -92,11 +110,6 @@ export function App({ bridge }: { bridge: Bridge }) {
             <button type="submit" className="primary" disabled={busy || !intent.trim()}>
               {state.plan ? "Start over" : "Plan it"}
             </button>
-            {!state.graph && !state.plan && (
-              <button type="button" disabled={busy} onClick={() => send({ type: "showGraph", payload: guard })}>
-                Show the current function graph
-              </button>
-            )}
             {busy && (
               <button type="button" onClick={() => send({ type: "cancel", payload: { sessionId: state.sessionId } })}>
                 Cancel
@@ -133,37 +146,48 @@ export function App({ bridge }: { bridge: Bridge }) {
         )}
       </header>
 
-      {graphView ? (
-        <main className="workspace">
-          <FunctionGraph graph={state.graph!} showTests={showTests} selectedId={selectedId} onSelect={setSelectedId} onOpen={openNode} />
-          <ResultPanel
-            state={state}
-            graph={state.graph!}
-            showTests={showTests}
-            onShowTests={setShowTests}
-            onShowPlan={() => setShowPlan(true)}
-            send={send}
-          />
-        </main>
-      ) : state.plan || planning ? (
-        <main className="scroll">
-          {showPlan && state.graph && (
-            <button type="button" className="link back" onClick={() => setShowPlan(false)}>
-              ← Back to the graph
-            </button>
+      <nav className="tabs" role="tablist" aria-label="View">
+        <button type="button" role="tab" aria-selected={tab === "decisions"} className={tab === "decisions" ? "tab tab--active" : "tab"} onClick={() => openTab("decisions")}>
+          Decisions
+          {waiting && tab !== "decisions" && <span className="tab__badge">1 to review</span>}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "graph"} className={tab === "graph" ? "tab tab--active" : "tab"} onClick={() => openTab("graph")}>
+          Graph
+        </button>
+      </nav>
+
+      {tab === "graph" ? (
+        state.graph ? (
+          <main className="workspace" role="tabpanel">
+            <FunctionGraph graph={state.graph} showTests={showTests} selectedId={selectedId} onSelect={setSelectedId} onOpen={openNode} />
+            <ResultPanel
+              state={state}
+              graph={state.graph}
+              showTests={showTests}
+              onShowTests={setShowTests}
+              onShowDecisions={() => setTab("decisions")}
+              send={send}
+            />
+          </main>
+        ) : (
+          <div className="empty" role="tabpanel">
+            {busy ? <p>Reading the code and tracing calls{"…"}</p> : <p>The graph appears here once the agent has read the code.</p>}
+          </div>
+        )
+      ) : state.plan || busy ? (
+        <main className="scroll" role="tabpanel">
+          {state.plan || state.phase === "planning" ? (
+            <PlanningView state={state} plan={state.plan} activity={latest} send={send} />
+          ) : (
+            <div className="empty">
+              <p>Reading the code{"…"}</p>
+            </div>
           )}
-          <PlanningView state={state} plan={state.plan} activity={latest} send={send} />
         </main>
       ) : (
-        <div className="empty">
-          {busy ? (
-            <p>Reading the code{"…"}</p>
-          ) : (
-            <>
-              <p>Describe a feature. The agent proposes it one function at a time; you accept or reject each one before any code is written.</p>
-              <p>When every function is planned, it writes the code and shows how your functions connect.</p>
-            </>
-          )}
+        <div className="empty" role="tabpanel">
+          <p>Describe a feature. The agent proposes it one function at a time; you accept or reject each one before any code is written.</p>
+          <p>Each function you accept appears in the Graph tab right away. When every function is planned, the agent writes the code.</p>
         </div>
       )}
     </div>

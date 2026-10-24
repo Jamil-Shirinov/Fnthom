@@ -150,6 +150,8 @@ export const GraphNode = z.object({
   purpose: z.string().optional(),
   purposeSource: z.enum(["plan", "comment", "agent"]).optional(),
   status: z.enum(["new", "changed", "unchanged"]),
+  /** Accepted in the plan but not written yet: a new function has no code to open, a change is not applied. */
+  planned: z.boolean().optional(),
 });
 export type GraphNode = z.infer<typeof GraphNode>;
 
@@ -159,6 +161,8 @@ export const GraphEdge = z.object({
   to: id,
   /** "call": a direct call. "dispatch": a call through an interface or object type the target returns. "registers": a route set up by a function. */
   kind: z.enum(["call", "dispatch", "registers"]),
+  /** A connection the accepted plan will add; it is not in the code yet. */
+  planned: z.boolean().optional(),
 });
 export type GraphEdge = z.infer<typeof GraphEdge>;
 

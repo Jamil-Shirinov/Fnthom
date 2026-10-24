@@ -58,6 +58,16 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 }
 .attention span { color: var(--muted); }
 
+.tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.tab {
+  background: none; color: var(--muted); border-radius: 0; padding: 8px 14px; border-bottom: 2px solid transparent;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.tab:hover { color: var(--fg); }
+.tab--active { color: var(--fg); border-bottom-color: var(--accent); }
+.tab__badge { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--button-bg); color: var(--button-fg); }
+.waiting { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 4px; }
+
 .workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; }
 .scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .graph { min-height: 320px; height: 100%; border-right: 1px solid var(--border); }
@@ -75,6 +85,7 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .react-flow__controls button { background: var(--surface); color: var(--fg); border-color: var(--border); }
 .react-flow__controls button svg { fill: var(--fg); }
 .react-flow__handle { opacity: 0; }
+.react-flow__edge.call--planned { opacity: 0.55; }
 .react-flow__edge.call--dimmed { opacity: 0.2; }
 
 .legend-toggle { background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
@@ -106,6 +117,7 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .fn--changed { border: 2px solid var(--changed); }
 .fn--selected { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fn--dimmed { opacity: 0.35; }
+.fn--planned { border-style: dashed; }
 
 .popup {
   width: 320px; padding: 10px 12px; border-radius: 6px; background: var(--vscode-editorWidget-background, #252526);
@@ -127,7 +139,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 /* Planning loop. */
 .planning { max-width: 780px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
 .planning__summary p { margin: 0 0 8px; }
-.back { margin: 12px 16px 0; }
 .progress { position: relative; height: 20px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 11px; }
 .progress__bar { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--ok) 35%, transparent); transition: width 0.3s; }
 .progress span { position: relative; padding: 0 10px; line-height: 18px; color: var(--fg); }
@@ -188,5 +199,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .legend__box { width: 16px; height: 12px; border-radius: 3px; border: 2px solid; flex: none; }
 .legend__box--new { border-color: var(--new); }
 .legend__box--changed { border-color: var(--changed); }
+.legend__box--planned { border-color: var(--muted); border-style: dashed; }
 .legend__file { width: 6px; height: 14px; border-radius: 2px; flex: none; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }

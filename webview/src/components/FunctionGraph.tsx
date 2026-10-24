@@ -27,6 +27,7 @@ const KIND_LABEL: Record<GraphNode["kind"], string> = {
   test: "tests",
 };
 const STATUS_LABEL: Record<GraphNode["status"], string | null> = { new: "New", changed: "Changed", unchanged: null };
+const PLANNED_LABEL: Record<GraphNode["status"], string | null> = { new: "Planned", changed: "Change planned", unchanged: null };
 
 /**
  * One color per kind of connection, mid-tones that read on light and dark themes and stay clear of the
@@ -68,11 +69,12 @@ type FunctionFlowNode = Node<FunctionNodeData, "fn">;
 
 function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
   const { node, hue, selected, dimmed } = data;
-  const status = STATUS_LABEL[node.status];
+  const status = node.planned ? PLANNED_LABEL[node.status] : STATUS_LABEL[node.status];
+  const unwritten = node.planned && node.status === "new";
   const file = node.path.split("/").pop();
   return (
     <div
-      className={`fn fn--${node.status}${selected ? " fn--selected" : ""}${dimmed ? " fn--dimmed" : ""}`}
+      className={`fn fn--${node.status}${node.planned ? " fn--planned" : ""}${selected ? " fn--selected" : ""}${dimmed ? " fn--dimmed" : ""}`}
       style={{ "--file-hue": hue } as CSSProperties}
     >
       <Handle type="target" position={Position.Left} />
@@ -94,10 +96,8 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
           </button>
         </div>
         <div className="popup__where">
-          <code>
-            {node.path}:{node.startLine}-{node.endLine}
-          </code>
-          {status && <span className={`badge badge--${node.status}`}>{status} in this feature</span>}
+          <code>{unwritten ? node.path : `${node.path}:${node.startLine}-${node.endLine}`}</code>
+          {status && <span className={`badge badge--${node.status}`}>{node.planned ? status : `${status} in this feature`}</span>}
         </div>
         <p className={node.purpose ? "" : "hint"}>{node.purpose ?? "No description yet."}</p>
         {node.purposeSource && (
@@ -115,9 +115,16 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
             <span>Called by</span> {data.calledBy.join(", ")}
           </div>
         )}
-        <button type="button" className="link" onClick={(e) => (e.stopPropagation(), data.onOpen())}>
-          Show in editor
-        </button>
+        {unwritten ? (
+          <div className="hint">Accepted in the plan. The code is written once every function is planned.</div>
+        ) : (
+          <>
+            {node.planned && <div className="hint">The change is planned; the editor shows the current code.</div>}
+            <button type="button" className="link" onClick={(e) => (e.stopPropagation(), data.onOpen())}>
+              Show in editor
+            </button>
+          </>
+        )}
       </NodeToolbar>
     </div>
   );
@@ -179,7 +186,7 @@ export function FunctionGraph(props: {
           target: edge.to,
           markerEnd: { type: MarkerType.ArrowClosed, color: style.color, width: 18, height: 18 },
           style: { stroke: style.color, strokeWidth: touched ? 3 : 1.75, ...(style.dash ? { strokeDasharray: style.dash } : {}) },
-          className: `call call--${edge.kind}${selectedId && !touched ? " call--dimmed" : ""}`,
+          className: `call call--${edge.kind}${edge.planned ? " call--planned" : ""}${selectedId && !touched ? " call--dimmed" : ""}`,
           animated: !!touched,
           ...(edge.kind === "registers" ? { label: "route", labelStyle: { fill: style.color } } : {}),
         };
@@ -197,7 +204,8 @@ export function FunctionGraph(props: {
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => {
           onSelect(node.id);
-          onOpen(node.id);
+          const target = graph.nodes.find((n) => n.id === node.id);
+          if (!(target?.planned && target.status === "new")) onOpen(node.id);
         }}
         onPaneClick={() => onSelect(null)}
         nodesConnectable={false}
@@ -251,7 +259,9 @@ function EdgeLegend(props: { present: ReadonlySet<GraphEdge["kind"]>; onClose: (
           );
         })}
       </ul>
-      <div className="hint">Arrows point from the caller to the function it uses. Click a box to highlight its arrows.</div>
+      <div className="hint">
+        Arrows point from the caller to the function it uses. Faded arrows are planned and not in the code yet. Click a box to highlight its arrows.
+      </div>
     </div>
   );
 }

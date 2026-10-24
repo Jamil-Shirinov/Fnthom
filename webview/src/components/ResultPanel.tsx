@@ -1,4 +1,4 @@
-import type { ApplicationState, CodeGraph } from "../../../src/shared/schema";
+import { currentProposal, type ApplicationState, type CodeGraph } from "../../../src/shared/schema";
 import type { UiActionInput } from "../vscode";
 import { EDGE_STYLE, fileHue } from "./FunctionGraph";
 
@@ -9,14 +9,16 @@ export function ResultPanel(props: {
   graph: CodeGraph;
   showTests: boolean;
   onShowTests: (show: boolean) => void;
-  onShowPlan: () => void;
+  onShowDecisions: () => void;
   send: Send;
 }) {
-  const { state, graph, showTests, onShowTests, onShowPlan, send } = props;
+  const { state, graph, showTests, onShowTests, onShowDecisions, send } = props;
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const busy = state.operationId !== null;
   const counts = { new: 0, changed: 0 };
   for (const n of graph.nodes) if (n.status !== "unchanged" && n.kind !== "test") counts[n.status] += 1;
+  const planned = graph.nodes.some((n) => n.planned);
+  const waiting = state.phase === "reviewing" ? currentProposal(state.plan) : null;
   const files = [...new Set(graph.nodes.map((n) => n.path))].sort();
   const failed = state.checks.filter((c) => c.status !== "passed");
 
@@ -29,9 +31,22 @@ export function ResultPanel(props: {
             {counts.new} new and {counts.changed} changed {counts.new + counts.changed === 1 ? "function" : "functions"}. Click any box to read
             what it does and jump to its code.
           </p>
-          <button type="button" className="link" onClick={onShowPlan}>
+          <button type="button" className="link" onClick={onShowDecisions}>
             Review the decisions
           </button>
+        </>
+      ) : state.plan ? (
+        <>
+          <h2>Planned so far</h2>
+          <p>Dashed boxes and faded arrows are accepted but not written yet. The code is written once every function is planned.</p>
+          {waiting && (
+            <div className="waiting">
+              <code>{waiting.name}</code> is waiting for your decision.{" "}
+              <button type="button" className="link" onClick={onShowDecisions}>
+                Review it
+              </button>
+            </div>
+          )}
         </>
       ) : null}
 
@@ -82,6 +97,11 @@ export function ResultPanel(props: {
         <li>
           <span className="legend__box legend__box--changed" /> Changed by this feature
         </li>
+        {planned && (
+          <li>
+            <span className="legend__box legend__box--planned" /> Planned, not written yet
+          </li>
+        )}
       </ul>
       <p className="hint">
         Arrow colors: <span style={{ color: EDGE_STYLE.call.color }}>direct call</span>, <span style={{ color: EDGE_STYLE.dispatch.color }}>call through an interface</span>,{" "}
