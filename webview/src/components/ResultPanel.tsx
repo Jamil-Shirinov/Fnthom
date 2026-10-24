@@ -1,4 +1,4 @@
-import { currentProposal, type ApplicationState, type CodeGraph } from "../../../src/shared/schema";
+import type { ApplicationState, CodeGraph } from "../../../src/shared/schema";
 import type { UiActionInput } from "../vscode";
 import { EDGE_STYLE, fileHue } from "./FunctionGraph";
 
@@ -18,7 +18,6 @@ export function ResultPanel(props: {
   const counts = { new: 0, changed: 0 };
   for (const n of graph.nodes) if (n.status !== "unchanged" && n.kind !== "test") counts[n.status] += 1;
   const planned = graph.nodes.some((n) => n.planned);
-  const waiting = state.phase === "reviewing" ? currentProposal(state.plan) : null;
   const files = [...new Set(graph.nodes.map((n) => n.path))].sort();
   const failed = state.checks.filter((c) => c.status !== "passed");
 
@@ -34,19 +33,6 @@ export function ResultPanel(props: {
           <button type="button" className="link" onClick={onShowDecisions}>
             Review the decisions
           </button>
-        </>
-      ) : state.plan ? (
-        <>
-          <h2>Planned so far</h2>
-          <p>Dashed boxes and faded arrows are accepted but not written yet. The code is written once every function is planned.</p>
-          {waiting && (
-            <div className="waiting">
-              <code>{waiting.name}</code> is waiting for your decision.{" "}
-              <button type="button" className="link" onClick={onShowDecisions}>
-                Review it
-              </button>
-            </div>
-          )}
         </>
       ) : null}
 
