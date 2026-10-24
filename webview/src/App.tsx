@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityEvent } from "../../src/shared/messages";
-import { currentProposal, type ApplicationState, type Phase } from "../../src/shared/schema";
+import type { ApplicationState, Phase } from "../../src/shared/schema";
 import { FunctionGraph } from "./components/FunctionGraph";
 import { PlanningView } from "./components/PlanningView";
 import { ResultPanel } from "./components/ResultPanel";
@@ -85,7 +85,6 @@ export function App({ bridge }: { bridge: Bridge }) {
   const busy = state.operationId !== null;
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const latest = activity.filter((a) => a.operationId === state.operationId).at(-1)?.message ?? null;
-  const waiting = state.phase === "reviewing" ? currentProposal(state.plan) : null;
   const openTab = (next: Tab) => {
     setTab(next);
     if (next === "graph" && !busy && REFRESH_PHASES.has(state.phase)) send({ type: "showGraph", payload: guard });
@@ -149,7 +148,6 @@ export function App({ bridge }: { bridge: Bridge }) {
       <nav className="tabs" role="tablist" aria-label="View">
         <button type="button" role="tab" aria-selected={tab === "decisions"} className={tab === "decisions" ? "tab tab--active" : "tab"} onClick={() => openTab("decisions")}>
           Decisions
-          {waiting && tab !== "decisions" && <span className="tab__badge">1 to review</span>}
         </button>
         <button type="button" role="tab" aria-selected={tab === "graph"} className={tab === "graph" ? "tab tab--active" : "tab"} onClick={() => openTab("graph")}>
           Graph

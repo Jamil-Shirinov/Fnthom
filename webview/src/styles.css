@@ -65,7 +65,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 }
 .tab:hover { color: var(--fg); }
 .tab--active { color: var(--fg); border-bottom-color: var(--accent); }
-.tab__badge { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--button-bg); color: var(--button-fg); }
 
 .workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; }
 .scroll { flex: 1; overflow-y: auto; min-height: 0; }
