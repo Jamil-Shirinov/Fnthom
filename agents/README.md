@@ -9,6 +9,7 @@ This documentation makes the hackathon idea usable by teammates and their coding
 | [Product](product.md) | Problem, interaction design, differentiation, examples, and pitch |
 | [Architecture](architecture.md) | System boundaries, state, conceptual steps, source grounding, and invariants |
 | [Stack](stack.md) | Working technology choices and deliberately deferred infrastructure |
+| [Application specification](implementation/application-spec.md) | MVP implementation contract, schemas, state machine, module boundaries, and acceptance criteria |
 | [Droid integration](integrations/factory-droid.md) | SDK capabilities, integration strategy, constraints, and first experiment |
 | [VS Code extension](implementation/vscode-extension.md) | Extension setup, UI, APIs, edit handling, and packaging |
 | [VS Code fork](implementation/vscode-fork.md) | Alternative path and when it would be justified |

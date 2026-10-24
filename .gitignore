@@ -1,0 +1,18 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.vsix
+
+# Local credentials (an example file may be committed)
+.env
+.env.*
+!.env.example
+
+# Local runtime state; exported demo documentation can live in demo/
+.human-centered-agent/
+
+# Machine-specific files
+.DS_Store
+*.log

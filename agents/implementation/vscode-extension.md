@@ -12,9 +12,9 @@ Choose **New Extension (TypeScript)**. Open the generated project in VS Code and
 
 Build the webview's React assets with Vite and load the bundled local assets into a webview panel. Use VS Code theme colors, constrained resource access, and an appropriate content security policy. Validate messages crossing the webview boundary. Keep secrets and file operations in the extension host.
 
-## Suggested source layout
+## Source layout
 
-This is a proposed layout outside the documentation directory:
+The repository now has the following folder scaffold outside the documentation directory. File names below are intended implementation locations; executable code is not yet present:
 
 ```text
 src/
@@ -33,9 +33,14 @@ src/
 webview/
   src/
     App.tsx
-    ArchitectureGraph.tsx
-    StepPanel.tsx
+    components/
+      ArchitectureGraph.tsx
+      StepPanel.tsx
+demo/
+tests/
 ```
+
+Use one root package initially. Keep shared contracts in `src/shared/` instead of introducing a separate package. See the [root README](../../README.md) and directory README files for ownership. Build output belongs in `dist/` and `webview/dist/`.
 
 ## API mapping
 
