@@ -1,0 +1,98 @@
+/* VS Code injects --vscode-* variables into webviews; fallbacks keep the browser preview readable. */
+:root {
+  --bg: var(--vscode-editor-background, #1e1e1e);
+  --fg: var(--vscode-editor-foreground, #d4d4d4);
+  --muted: var(--vscode-descriptionForeground, #9d9d9d);
+  --border: var(--vscode-panel-border, #3c3c3c);
+  --surface: var(--vscode-sideBar-background, #252526);
+  --accent: var(--vscode-focusBorder, #3794ff);
+  --button-bg: var(--vscode-button-background, #0e639c);
+  --button-fg: var(--vscode-button-foreground, #ffffff);
+  --button2-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+  --button2-fg: var(--vscode-button-secondaryForeground, #ffffff);
+  --input-bg: var(--vscode-input-background, #3c3c3c);
+  --input-fg: var(--vscode-input-foreground, #cccccc);
+  --ok: var(--vscode-testing-iconPassed, #73c991);
+  --warn: var(--vscode-editorWarning-foreground, #cca700);
+  --bad: var(--vscode-errorForeground, #f48771);
+  --font: var(--vscode-font-family, system-ui, sans-serif);
+  --mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 13px; }
+code { font-family: var(--mono); }
+h2 { font-size: 15px; margin: 4px 0 8px; }
+h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 16px 0 6px; }
+
+button {
+  font: inherit; border: none; border-radius: 2px; padding: 5px 12px; cursor: pointer;
+  background: var(--button2-bg); color: var(--button2-fg);
+}
+button.primary { background: var(--button-bg); color: var(--button-fg); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, textarea:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff); padding: 0; text-align: left; }
+
+.app { display: flex; flex-direction: column; height: 100%; }
+.header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
+.intent { display: grid; gap: 6px; }
+.intent label { color: var(--muted); font-size: 12px; }
+.intent textarea {
+  width: 100%; resize: vertical; font: inherit; padding: 6px 8px;
+  background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); border-radius: 2px;
+}
+.intent__actions { display: flex; gap: 8px; }
+.status { color: var(--muted); }
+.status strong { color: var(--fg); }
+.status__preview { margin-left: 12px; padding: 1px 6px; border: 1px dashed var(--border); border-radius: 8px; font-size: 11px; }
+.error { color: var(--bad); }
+
+.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+.graph { min-height: 320px; height: 100%; border-right: 1px solid var(--border); }
+.panel { padding: 12px 16px; overflow-y: auto; }
+.empty { padding: 32px 16px; color: var(--muted); text-align: center; }
+.hint { color: var(--muted); }
+
+@media (max-width: 720px) {
+  .workspace { grid-template-columns: 1fr; grid-template-rows: 360px auto; }
+  .graph { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* React Flow, themed to the editor. */
+.react-flow { --xy-background-color: var(--bg); --xy-edge-stroke: var(--muted); --xy-edge-label-background-color: var(--bg); --xy-edge-label-color: var(--muted); }
+.react-flow__controls button { background: var(--surface); color: var(--fg); border-color: var(--border); }
+.react-flow__controls button svg { fill: var(--fg); }
+.react-flow__handle { opacity: 0; }
+
+.concept {
+  width: 210px; padding: 10px 12px; border-radius: 6px; background: var(--surface);
+  border: 1px solid var(--border); display: grid; gap: 8px; cursor: pointer;
+}
+.concept__title { font-weight: 600; }
+.concept__meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; }
+.concept--planned { border-style: dashed; background: transparent; }
+.concept--active { border: 2px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.concept--applied { border-color: var(--fg); }
+.concept--stale { border-color: var(--warn); }
+.concept--selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.chip, .badge { padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); white-space: nowrap; }
+.chip--active { color: var(--accent); border-color: var(--accent); }
+.chip--stale { color: var(--warn); border-color: var(--warn); }
+.badge--supported { color: var(--ok); border-color: var(--ok); }
+.badge--failed { color: var(--bad); border-color: var(--bad); }
+.badge--stale { color: var(--warn); border-color: var(--warn); }
+.badge--unverified, .badge--none { color: var(--muted); }
+
+.steps { padding-left: 18px; margin: 0; display: grid; gap: 10px; }
+.step__title { font-weight: 600; }
+.step__status { font-size: 11px; color: var(--muted); }
+.step--active .step__status { color: var(--accent); }
+.step--applied .step__status { color: var(--ok); }
+.step__expect { margin-top: 2px; }
+.io { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.io dt { color: var(--muted); }
+.io dd { margin: 0; }
+.claims, .sources { padding-left: 0; list-style: none; display: grid; gap: 6px; }

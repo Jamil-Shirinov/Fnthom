@@ -1,0 +1,6 @@
+**
+!dist/**
+!webview/dist/**
+!package.json
+!README.md
+!LICENSE

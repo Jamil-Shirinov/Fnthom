@@ -24,10 +24,14 @@
 | Patch size | Working recommendation | Small coherent concepts; 10–50 lines is a heuristic |
 | Invariant presentation | Working recommendation | Claims tied to source and evidence with explicit verification state |
 | Publishing | Open | Local VSIX is enough for a demo; no publication requested |
+| Demo fixture | User decision (Oct 24) | API caching on a small weather endpoint in `demo/app/`; clearest hit/miss data flow and a simple schema invariant |
+| Fixture stack | User decision (Oct 24) | TypeScript + Express + Vitest, so the team uses one toolchain; a Zod response schema backs the "cached and uncached responses share a schema" invariant |
+| Build tooling | Working recommendation; implemented in MVP step 1 | esbuild bundles the host to `dist/`, Vite bundles the webview to `webview/dist/`, Vitest runs `tests/`; exact versions pinned in `package.json` |
+| Agent during development | Working recommendation; implemented in MVP step 1 | A deterministic fake adapter (`src/agent/fakeAdapter.ts`) serves the caching fixture until the real Droid adapter passes the proposal-only gate; the `humanCenteredAgent.useFakeAgent` setting defaults to true |
 
 ## Questions to resolve before or during implementation
 
-1. Which demo repository and feature will be used: caching, authentication, or another bounded example?
+1. Resolved: caching in `demo/app/`, TypeScript + Express + Vitest (see the record above).
 2. Who has Factory account access, what models are available, and what are the budget and authentication constraints?
 3. Which compatible SDK/CLI versions will be pinned, and can their tool configuration enforce proposal-only operation?
 4. Validate the specification's proposed full-content edit schema and separate step-dependency/data-flow graphs during implementation.

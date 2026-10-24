@@ -1,0 +1,214 @@
+{
+  "id": "plan-weather-cache",
+  "revision": 1,
+  "intent": "Add caching so repeated weather requests do not hit the upstream forecast provider",
+  "summary": "Put a short-lived in-memory cache in front of the forecast provider. The endpoint checks the cache first, calls upstream only on a miss, stores the result, and shapes hits and misses through the same response schema.",
+  "concepts": [
+    {
+      "id": "c-endpoint",
+      "title": "Weather endpoint",
+      "purpose": "Receives GET /api/weather/:city, validates the city, and coordinates the lookup.",
+      "inputs": [
+        "city path parameter"
+      ],
+      "outputs": [
+        "JSON weather response or an error status"
+      ],
+      "intendedPaths": [
+        "src/app.ts"
+      ],
+      "sourceRefs": [
+        {
+          "path": "src/app.ts",
+          "startLine": 8,
+          "endLine": 22,
+          "contentHash": "sha256:541f0ebb355ca4109d31689c5aaf9cb74f7eae38ffa1fa2c0f2f52828dd7fde1",
+          "status": "resolved",
+          "symbol": "createApp"
+        }
+      ],
+      "invariants": []
+    },
+    {
+      "id": "c-cache-lookup",
+      "title": "Cache lookup",
+      "purpose": "Normalizes the city into a cache key and returns a stored forecast if it has not expired.",
+      "inputs": [
+        "validated city"
+      ],
+      "outputs": [
+        "cached forecast (hit) or nothing (miss)"
+      ],
+      "intendedPaths": [
+        "src/cache.ts",
+        "src/app.ts"
+      ],
+      "sourceRefs": [],
+      "invariants": [
+        {
+          "id": "inv-case-insensitive-key",
+          "claim": "Cities that differ only by letter case or surrounding spaces share one cache entry.",
+          "sourceRefs": [],
+          "evidenceIds": [],
+          "status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "c-upstream",
+      "title": "Upstream forecast call",
+      "purpose": "Fetches a fresh forecast from the slow, metered provider. Only reached on a cache miss after this feature.",
+      "inputs": [
+        "city"
+      ],
+      "outputs": [
+        "forecast: temperatureC, conditions"
+      ],
+      "intendedPaths": [
+        "src/upstream.ts"
+      ],
+      "sourceRefs": [
+        {
+          "path": "src/upstream.ts",
+          "startLine": 16,
+          "endLine": 21,
+          "contentHash": "sha256:b7b1c6b999d888ad720beb0bbed959aaa3743ae1e5bed1b8e34bfc2bec1fd519",
+          "status": "resolved",
+          "symbol": "fetchForecast"
+        }
+      ],
+      "invariants": []
+    },
+    {
+      "id": "c-cache-write",
+      "title": "Cache write with TTL",
+      "purpose": "Stores a fresh forecast with the time it was fetched, expiring after 60 seconds.",
+      "inputs": [
+        "fresh forecast"
+      ],
+      "outputs": [
+        "cache entry"
+      ],
+      "intendedPaths": [
+        "src/cache.ts",
+        "src/app.ts"
+      ],
+      "sourceRefs": [],
+      "invariants": []
+    },
+    {
+      "id": "c-response",
+      "title": "Response shaping",
+      "purpose": "Builds the JSON body through the WeatherResponse schema for both hits and misses.",
+      "inputs": [
+        "forecast and fetchedAt"
+      ],
+      "outputs": [
+        "validated WeatherResponse"
+      ],
+      "intendedPaths": [
+        "src/schema.ts",
+        "src/app.ts"
+      ],
+      "sourceRefs": [
+        {
+          "path": "src/schema.ts",
+          "startLine": 3,
+          "endLine": 8,
+          "contentHash": "sha256:e9c7da08a2302d781a0da7a467645b891a0f4947ae5e6db00c01284223fa4039",
+          "status": "resolved",
+          "symbol": "WeatherResponse"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "inv-same-schema",
+          "claim": "Cached and uncached responses have the same schema.",
+          "sourceRefs": [
+            {
+              "path": "src/schema.ts",
+              "startLine": 3,
+              "endLine": 8,
+              "contentHash": "sha256:e9c7da08a2302d781a0da7a467645b891a0f4947ae5e6db00c01284223fa4039",
+              "status": "resolved"
+            }
+          ],
+          "evidenceIds": [],
+          "status": "unverified"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-endpoint-lookup",
+      "fromConceptId": "c-endpoint",
+      "toConceptId": "c-cache-lookup",
+      "label": "normalized city key"
+    },
+    {
+      "id": "e-lookup-response",
+      "fromConceptId": "c-cache-lookup",
+      "toConceptId": "c-response",
+      "label": "hit: cached forecast"
+    },
+    {
+      "id": "e-lookup-upstream",
+      "fromConceptId": "c-cache-lookup",
+      "toConceptId": "c-upstream",
+      "label": "miss"
+    },
+    {
+      "id": "e-upstream-write",
+      "fromConceptId": "c-upstream",
+      "toConceptId": "c-cache-write",
+      "label": "fresh forecast"
+    },
+    {
+      "id": "e-write-response",
+      "fromConceptId": "c-cache-write",
+      "toConceptId": "c-response",
+      "label": "forecast + fetchedAt"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s-cache-module",
+      "title": "Create a TTL cache module",
+      "conceptIds": [
+        "c-cache-lookup",
+        "c-cache-write"
+      ],
+      "dependsOnStepIds": [],
+      "expectedBehavior": "A reusable in-memory cache exists with get, set, expiry, and a case-insensitive key helper. No endpoint behavior changes yet."
+    },
+    {
+      "id": "s-use-cache",
+      "title": "Check the cache before calling upstream",
+      "conceptIds": [
+        "c-endpoint",
+        "c-upstream"
+      ],
+      "dependsOnStepIds": [
+        "s-cache-module"
+      ],
+      "expectedBehavior": "Repeated requests for the same city within 60 seconds reach the provider once; responses are unchanged in shape."
+    },
+    {
+      "id": "s-prove-schema",
+      "title": "Prove hits and misses share one schema",
+      "conceptIds": [
+        "c-response"
+      ],
+      "dependsOnStepIds": [
+        "s-use-cache"
+      ],
+      "expectedBehavior": "Tests show cached and uncached responses both match WeatherResponse and expire after the TTL."
+    }
+  ],
+  "assumptions": [
+    "One server process, so an in-memory cache is enough; no shared cache across instances.",
+    "A 60-second TTL is acceptable staleness for weather data.",
+    "Cities are compared case-insensitively."
+  ]
+}
