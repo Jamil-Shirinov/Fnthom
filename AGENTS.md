@@ -4,14 +4,14 @@ This repository contains the CalHacks human-centered coding agent project. Read 
 
 ## Project direction
 
-Build a VS Code extension that helps developers understand AI-generated code through a persistent, source-linked architecture map and conceptual implementation steps. The working stack is TypeScript, React, React Flow, and Factory Droid SDK. These are working recommendations, not evidence of an existing implementation.
+Build a VS Code extension that helps developers understand AI-generated code. The agent plans a feature one function at a time; the developer accepts or rejects each one, and a rejection makes the agent rework the rest of the plan. After planning, the extension implements everything and shows a graph of how the project's functions connect, where clicking a node explains it and highlights its code. The working stack is TypeScript, React, React Flow, and Factory Droid SDK; the MVP currently runs on a scripted fake agent.
 
 ## Working agreement
 
 - Preserve the distinction between product goals, technical recommendations, verified capabilities, and open decisions.
-- Keep implementation aligned with developer comprehension. Do not replace conceptual steps with arbitrary delays or approval prompts for every small edit.
+- Keep implementation aligned with developer comprehension. Decisions are per function or module, not per small edit; do not add arbitrary delays.
 - Ground architecture claims in source references and verification evidence. Do not label a claim proven merely because the model asserted it.
-- Keep the extension in charge of step boundaries and applying proposed changes.
+- Keep the extension in charge of the planning loop and of applying generated changes.
 - Before implementation, inspect the current repository and relevant dependency APIs. The documents describe a design, not a guarantee that a particular SDK version supports every detail.
 - Update the relevant documents when decisions change. Explain the reason and practical consequences.
 - Ask about consequential unresolved product choices; make routine implementation choices autonomously within the user's requested scope.

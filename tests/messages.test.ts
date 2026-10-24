@@ -7,7 +7,7 @@ describe("UI action protocol", () => {
       protocolVersion: PROTOCOL_VERSION,
       requestId: "r1",
       type: "startFeature",
-      payload: { sessionId: "s1", expectedRevision: 0, intent: "Add caching", useSelection: false },
+      payload: { sessionId: "s1", expectedRevision: 0, intent: "Add caching" },
     });
     expect(result.success).toBe(true);
   });
@@ -19,9 +19,18 @@ describe("UI action protocol", () => {
     expect(
       UiAction.safeParse({
         ...base,
-        type: "previewFile",
-        payload: { sessionId: "s1", expectedRevision: 0, proposalId: "p", path: "../secrets.env" },
+        type: "previewChange",
+        payload: { path: "../secrets.env" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("decision actions", () => {
+  it("accepts a rejection with an optional reason", () => {
+    const base = { protocolVersion: PROTOCOL_VERSION, requestId: "r1", type: "rejectFunction" as const };
+    expect(UiAction.safeParse({ ...base, payload: { sessionId: "s1", expectedRevision: 3, functionId: "fn-1" } }).success).toBe(true);
+    expect(UiAction.safeParse({ ...base, payload: { sessionId: "s1", expectedRevision: 3, functionId: "fn-1", reason: "too complex" } }).success).toBe(true);
+    expect(UiAction.safeParse({ ...base, payload: { sessionId: "s1", expectedRevision: 3 } }).success).toBe(false);
   });
 });

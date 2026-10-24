@@ -14,33 +14,21 @@ Build the webview's React assets with Vite and load the bundled local assets int
 
 ## Source layout
 
-The repository now has the following folder scaffold outside the documentation directory. File names below are intended implementation locations; executable code is not yet present:
-
 ```text
 src/
-  extension.ts
-  panel.ts
-  agent/
-    planner.ts
-    stepGenerator.ts
-    session.ts
-  workspace/
-    context.ts
-    edits.ts
-    sourceLinks.ts
-  shared/
-    schema.ts
-webview/
-  src/
-    App.tsx
-    components/
-      ArchitectureGraph.tsx
-      StepPanel.tsx
-demo/
-tests/
+  extension.ts            activation, commands, file watching
+  panel.ts                webview, message routing, node navigation and highlight, diffs
+  agent/                  adapter interface, fake agent and scenario, controller
+  workspace/              port, VS Code implementation, edit validation, graph, previews, checks
+  shared/                 schemas, protocol, Markdown export
+webview/src/
+  App.tsx, vscode.ts, mockHost.ts
+  components/             PlanningView, FunctionGraph, ResultPanel
+demo/app/                 weather API the demo extends
+tests/                    controller, graph, fake agent, protocol
 ```
 
-Use one root package initially. Keep shared contracts in `src/shared/` instead of introducing a separate package. See the [root README](../../README.md) and directory README files for ownership. Build output belongs in `dist/` and `webview/dist/`.
+Use one root package. Keep shared contracts in `src/shared/`. Build output belongs in `dist/` and `webview/dist/`.
 
 ## API mapping
 
@@ -48,10 +36,10 @@ Use one root package initially. Keep shared contracts in `src/shared/` instead o
 | --- | --- |
 | Open custom interface | `window.createWebviewPanel` |
 | Discover/read files | `workspace.findFiles`, `workspace.fs` |
-| Native proposed-change preview | Virtual documents and `vscode.diff` |
-| Apply conceptual edits | `WorkspaceEdit`, `workspace.applyEdit` |
-| Navigate from node to source | `window.showTextDocument`, editor `revealRange` |
-| Highlight implementation | `TextEditorDecorationType` |
+| Before/after diff of what changed | Virtual documents and `vscode.diff` |
+| Apply generated code | `WorkspaceEdit`, `workspace.applyEdit` |
+| Navigate from node to source | `window.showTextDocument` in a non-preview tab, editor `revealRange` |
+| Highlight the node's code | `TextEditorDecorationType` with whole-line theme colors |
 | Store credentials | `ExtensionContext.secrets` |
 
 See the [API reference](https://code.visualstudio.com/api/references/vscode-api) and [webview guide](https://code.visualstudio.com/api/extension-guides/webview).
@@ -60,9 +48,7 @@ Use editor document contents when unsaved changes matter. A disk-only read can p
 
 ## Interface
 
-The initial layout can be a webview panel beside a native code editor or diff. Display the feature intent, interactive graph, active step explanation, source links, and continuation controls. A sidebar integration can be evaluated later if useful; a custom core editor layout is not required for the MVP.
-
-Clicking a graph node should reveal real source when implementation exists. Planned nodes should show intended responsibility and files without pretending they already have code.
+A webview panel opens beside the editor. During planning it shows the current proposal with Accept and Reject; afterwards it shows the function graph and a side panel. Clicking a node shows a pop-up in the graph and opens the function in its own editor tab with its lines highlighted. A sidebar integration can be evaluated later.
 
 ## Packaging
 

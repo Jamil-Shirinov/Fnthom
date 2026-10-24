@@ -1,11 +1,12 @@
-import { cpSync, mkdtempSync, symlinkSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { AgentCallOptions } from "../src/agent/adapter";
 import { GuardError, SessionController } from "../src/agent/controller";
 import { FakeAgentAdapter } from "../src/agent/fakeAdapter";
 import type { ActivityEvent } from "../src/shared/messages";
-import { CheckDefinition, type ApplicationState } from "../src/shared/schema";
+import { CheckDefinition, type ApplicationState, type FileChange, type FileSnapshot, type PlannedFunction } from "../src/shared/schema";
 import { NodeWorkspace } from "./helpers/nodeWorkspace";
 
 const DEMO = path.resolve(__dirname, "../demo/app");
@@ -20,10 +21,9 @@ function demoCopy() {
   return dir;
 }
 
-const node = (script: string, invariantIds: string[] = []) =>
-  CheckDefinition.parse({ id: "check", label: "check", executable: process.execPath, args: ["-e", script], invariantIds });
+const node = (script: string) => CheckDefinition.parse({ id: "check", label: "check", executable: process.execPath, args: ["-e", script] });
 
-function setup(checks: CheckDefinition[] = [], agent = new FakeAgentAdapter({ delayMs: 0 })) {
+function setup(checks: CheckDefinition[] = [], agent: FakeAgentAdapter = new FakeAgentAdapter({ delayMs: 0 })) {
   const workspace = new NodeWorkspace(demoCopy(), checks);
   const states: ApplicationState[] = [];
   const activity: ActivityEvent[] = [];
@@ -33,194 +33,234 @@ function setup(checks: CheckDefinition[] = [], agent = new FakeAgentAdapter({ de
   });
   const guard = () => ({ sessionId: "s1", expectedRevision: controller.getState().stateRevision });
   const state = () => controller.getState();
-  return { controller, workspace, states, activity, guard, state };
+  const proposal = () => state().plan!.functions.find((f) => f.status === "proposed")!;
+  const read = (p: string) => readFileSync(path.join(workspace.root, p), "utf8");
+  return { controller, workspace, states, activity, guard, state, proposal, read };
 }
 
-async function planned(checks: CheckDefinition[] = []) {
-  const ctx = setup(checks);
-  await ctx.controller.startFeature("Add caching", ctx.guard());
-  return ctx;
+type Ctx = ReturnType<typeof setup>;
+
+/** Accepts every proposal (rejecting the ones `reject` picks) until planning ends. */
+async function decideAll(ctx: Ctx, reject: (f: PlannedFunction) => boolean = () => false) {
+  for (let i = 0; i < 12 && ctx.state().phase === "reviewing"; i++) {
+    const p = ctx.proposal();
+    if (reject(p)) await ctx.controller.rejectFunction(p.id, "not this design", ctx.guard());
+    else await ctx.controller.acceptFunction(p.id, ctx.guard());
+  }
 }
 
-describe("planning", () => {
-  it("moves idle -> inspecting -> planReady and streams activity", async () => {
-    const { controller, states, activity, guard } = setup();
-    await controller.startFeature("Add caching", guard());
-    expect(states.map((s) => s.phase)).toEqual(["inspecting", "planReady"]);
-    expect(controller.getState().plan?.intent).toBe("Add caching");
-    expect(activity.length).toBeGreaterThan(0);
+describe("planning one function at a time", () => {
+  it("proposes a function, waits for a decision, and moves on when it is accepted", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    expect(ctx.states.map((s) => s.phase)).toEqual(["idle", "planning", "reviewing"]);
+    expect(ctx.proposal().name).toBe("createTtlCache");
+    expect(ctx.state().plan!.upcoming).toHaveLength(4);
+    expect(ctx.activity.length).toBeGreaterThan(0);
+
+    await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard());
+    expect(ctx.state().plan!.functions.map((f) => `${f.name}:${f.status}`)).toEqual(["createTtlCache:accepted", "cacheKey:proposed"]);
+    expect(ctx.state().plan!.upcoming).toHaveLength(3);
   });
 
-  it("rejects stale revisions, other sessions, and a second start while busy", async () => {
-    const { controller, guard } = setup([], new FakeAgentAdapter({ delayMs: 20 }));
-    await expect(controller.startFeature("x", { sessionId: "s1", expectedRevision: 5 })).rejects.toBeInstanceOf(GuardError);
-    await expect(controller.startFeature("x", { sessionId: "other", expectedRevision: 0 })).rejects.toBeInstanceOf(GuardError);
-    const first = controller.startFeature("Add caching", guard());
-    await expect(controller.startFeature("Again", guard())).rejects.toBeInstanceOf(GuardError);
-    await first;
+  it("reworks the remaining plan after a rejection and keeps the rejected design in the history", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    const first = ctx.proposal();
+    const phases: string[] = [];
+    ctx.states.length = 0;
+    await ctx.controller.rejectFunction(first.id, "memory must be bounded", ctx.guard());
+    phases.push(...ctx.states.map((s) => s.phase));
+
+    expect(phases).toContain("reworking");
+    expect(ctx.state().phase).toBe("reviewing");
+    const next = ctx.proposal();
+    expect(next.name).toBe("createLruCache");
+    expect(next.replacesId).toBe(first.id);
+    expect(ctx.state().plan!.reworkNote).toMatch(/memory must be bounded/);
+    expect(ctx.state().plan!.functions[0]).toMatchObject({ status: "rejected", rejectionReason: "memory must be bounded" });
+    expect(ctx.state().plan!.upcoming.find((u) => u.name === "createApp")?.summary).toMatch(/LRU/);
   });
 
-  it("cancellation returns to the previous stable phase without an error", async () => {
-    const { controller, guard } = setup([], new FakeAgentAdapter({ delayMs: 50 }));
-    const running = controller.startFeature("Add caching", guard());
-    controller.cancel({ sessionId: "s1" });
-    await running;
-    expect(controller.getState().phase).toBe("idle");
-    expect(controller.getState().error).toBeNull();
+  it("rejects decisions on the wrong proposal, stale revisions, and other sessions", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await expect(ctx.controller.acceptFunction("fn-nope", ctx.guard())).rejects.toBeInstanceOf(GuardError);
+    await expect(ctx.controller.acceptFunction(ctx.proposal().id, { sessionId: "s1", expectedRevision: 0 })).rejects.toBeInstanceOf(GuardError);
+    await expect(ctx.controller.acceptFunction(ctx.proposal().id, { sessionId: "other", expectedRevision: ctx.state().stateRevision })).rejects.toBeInstanceOf(
+      GuardError,
+    );
+    const id = ctx.proposal().id;
+    await ctx.controller.acceptFunction(id, ctx.guard());
+    await expect(ctx.controller.acceptFunction(id, ctx.guard())).rejects.toBeInstanceOf(GuardError);
   });
 
-  it("surfaces invalid agent output as a recoverable error", async () => {
-    class BrokenAgent extends FakeAgentAdapter {
-      override async inspectAndPlan(): Promise<never> {
-        throw new Error("structured output missing");
+  it("can be cancelled and continued from the last decision", async () => {
+    const ctx = setup([], new FakeAgentAdapter({ delayMs: 30 }));
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    const accepting = ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard());
+    ctx.controller.cancel({ sessionId: "s1" });
+    await accepting;
+    expect(ctx.state().phase).toBe("needsAttention");
+    expect(ctx.state().error?.message).toMatch(/cancelled/);
+
+    await ctx.controller.retry(ctx.guard());
+    expect(ctx.state().phase).toBe("reviewing");
+    expect(ctx.proposal().name).toBe("cacheKey");
+  });
+
+  it("reports malformed agent output and recovers on retry", async () => {
+    class Flaky extends FakeAgentAdapter {
+      broken = true;
+      override async planNext(...args: Parameters<FakeAgentAdapter["planNext"]>) {
+        const turn = await super.planNext(...args);
+        if (!this.broken) return turn;
+        this.broken = false;
+        return { ...turn, next: { ...turn.next!, path: "../outside.ts" } };
       }
     }
-    const { controller, guard } = setup([], new BrokenAgent({ delayMs: 0 }));
-    await controller.startFeature("Add caching", guard());
-    expect(controller.getState().phase).toBe("idle");
-    expect(controller.getState().error?.stage).toBe("invalid-output");
+    const ctx = setup([], new Flaky({ delayMs: 0 }));
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    expect(ctx.state().phase).toBe("needsAttention");
+    expect(ctx.state().error?.stage).toBe("invalid-output");
+    expect(ctx.state().plan).toBeNull();
+
+    await ctx.controller.retry(ctx.guard());
+    expect(ctx.state().phase).toBe("reviewing");
   });
 });
 
-describe("proposing", () => {
-  it("only proposes dependency-ready steps, without touching files", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await expect(controller.startStep("s-use-cache", guard())).rejects.toBeInstanceOf(GuardError);
-
-    const before = await workspace.snapshot(["src/app.ts", "src/cache.ts"]);
-    await controller.startStep("s-cache-module", guard());
-    expect(state().phase).toBe("previewReady");
-    expect(state().proposal?.files.map((f) => f.path)).toEqual(["src/cache.ts"]);
-    expect(await workspace.snapshot(["src/app.ts", "src/cache.ts"])).toEqual(before);
-    expect(controller.baselineFor(state().proposal!.id, "src/cache.ts")?.exists).toBe(false);
-  });
-
-  it("answers questions without changing phase or files", async () => {
-    const { controller, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    await controller.askQuestion("Why lazy expiry?", guard());
-    expect(state().phase).toBe("previewReady");
-    expect(state().questions[0]?.answer).toMatch(/TTL cache module/);
-  });
-});
-
-describe("applying", () => {
-  it("applies a proposal exactly once and rejects a replay", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    const proposalId = state().proposal!.id;
-    await controller.applyAndContinue(proposalId, guard());
-
-    expect((await workspace.snapshot(["src/cache.ts"]))[0]?.exists).toBe(true);
-    expect(state().history.map((h) => h.stepId)).toEqual(["s-cache-module"]);
-    await expect(controller.applyAndContinue(proposalId, guard())).rejects.toBeInstanceOf(GuardError);
-  });
-
-  it("blocks application when the file changed after the proposal, keeping the newer source", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    await controller.applyAndContinue(state().proposal!.id, guard()); // no checks: advances to s-use-cache
-    expect(state().phase).toBe("previewReady");
-    expect(state().currentStepId).toBe("s-use-cache");
-
-    await workspace.write("src/app.ts", "// edited by hand\n");
-    await controller.applyAndContinue(state().proposal!.id, guard());
-    expect(state().phase).toBe("needsAttention");
-    expect(state().error?.stage).toBe("stale-source");
-    expect((await workspace.snapshot(["src/app.ts"]))[0]?.content).toBe("// edited by hand\n");
-  });
-
-  it("pauses on unsaved changes instead of saving them", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    workspace.dirty.add("src/cache.ts");
-    await controller.applyAndContinue(state().proposal!.id, guard());
-    expect(state().error?.stage).toBe("save");
-    expect(state().history).toHaveLength(0);
-  });
-
-  it("reports real outcomes when a write fails and does not complete the step", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    workspace.failWrites.add("src/cache.ts");
-    await controller.applyAndContinue(state().proposal!.id, guard());
-    expect(state().phase).toBe("needsAttention");
-    expect(state().error?.stage).toBe("apply");
-    expect(state().history).toHaveLength(0);
-  });
-
-  it("retires a pending proposal when its file changes outside the session", async () => {
-    const { controller, workspace, guard, state } = await planned();
-    await controller.startStep("s-cache-module", guard());
-    await controller.applyAndContinue(state().proposal!.id, guard());
-    await workspace.write("src/app.ts", "// edited\n");
-    await controller.noteSourceChanged(["src/app.ts"]);
-    expect(state().proposal).toBeNull();
-    expect(state().error?.stage).toBe("stale-source");
-    expect(state().plan?.concepts.find((c) => c.id === "c-endpoint")?.sourceRefs[0]?.status).toBe("stale");
-  });
-});
-
-describe("checks and evidence", () => {
-  it("records failing checks, keeps the applied code, and continues only on request", async () => {
-    const { controller, workspace, guard, state } = await planned([node("process.exit(1)", ["inv-case-insensitive-key"])]);
-    await controller.startStep("s-cache-module", guard());
-    await controller.applyAndContinue(state().proposal!.id, guard());
-
-    expect(state().phase).toBe("needsAttention");
-    expect(state().error?.stage).toBe("checks");
-    expect((await workspace.snapshot(["src/cache.ts"]))[0]?.exists).toBe(true);
-    const lookup = state().plan!.concepts.find((c) => c.id === "c-cache-lookup")!;
-    expect(lookup.invariants[0]?.status).toBe("failed");
-
-    await controller.continueAfterFailure(guard());
-    expect(state().currentStepId).toBe("s-use-cache");
-    expect(state().evidence.at(-1)?.status).toBe("failed");
-  });
-
-  it("supports an invariant after a passing check and marks it stale after an outside edit", async () => {
-    const { controller, workspace, guard, state } = await planned([node("process.exit(0)", ["inv-case-insensitive-key"])]);
-    await controller.startStep("s-cache-module", guard());
-    await controller.applyAndContinue(state().proposal!.id, guard());
-    const status = () => state().plan!.concepts.find((c) => c.id === "c-cache-lookup")!.invariants[0]?.status;
-    expect(status()).toBe("supported");
-
-    await controller.noteSourceChanged(["src/cache.ts"]); // same content: the session's own write
-    expect(status()).toBe("supported");
-    await workspace.write("src/cache.ts", "export {};\n");
-    await controller.noteSourceChanged(["src/cache.ts"]);
-    expect(status()).toBe("stale");
-  });
-});
-
-describe("full loop on the real demo app", () => {
+describe("implementing after the last decision", () => {
   it(
-    "applies all three caching steps and the demo tests support the schema invariant",
+    "writes every accepted function, runs the demo's tests, and graphs the result",
     async () => {
       const demoTests = CheckDefinition.parse({
         id: "demo-tests",
         label: "Weather API tests",
         executable: process.execPath,
         args: [path.join(DEMO, "node_modules/vitest/vitest.mjs"), "run"],
-        invariantIds: ["inv-same-schema"],
         timeoutMs: 60_000,
       });
-      const { controller, guard, state } = await planned([demoTests]);
-      await controller.startStep("s-cache-module", guard());
-      for (let i = 0; i < 3 && state().phase === "previewReady"; i++) {
-        await controller.applyAndContinue(state().proposal!.id, guard());
-      }
+      const ctx = setup([demoTests]);
+      await ctx.controller.startFeature("Add caching", ctx.guard());
+      await decideAll(ctx);
 
-      expect(state().error).toBeNull();
-      expect(state().phase).toBe("complete");
-      expect(state().history.map((h) => h.stepId)).toEqual(["s-cache-module", "s-use-cache", "s-prove-schema"]);
-      expect(state().evidence.every((e) => e.status === "passed")).toBe(true);
-      expect(state().evidence.at(-1)?.output).toMatch(/6 passed/);
-      const response = state().plan!.concepts.find((c) => c.id === "c-response")!;
-      expect(response.invariants[0]?.status).toBe("supported");
-      const lookup = state().plan!.concepts.find((c) => c.id === "c-cache-lookup")!;
-      expect(lookup.sourceRefs.map((r) => r.path)).toContain("src/cache.ts");
+      const s = ctx.state();
+      expect(s.error).toBeNull();
+      expect(s.phase).toBe("done");
+      expect(s.applied.map((f) => `${f.path}:${f.baseHash ? "updated" : "created"}`)).toEqual([
+        "src/cache.ts:created",
+        "src/cachedUpstream.ts:created",
+        "src/app.ts:updated",
+        "test/cache.test.ts:created",
+      ]);
+      expect(s.checks).toHaveLength(1);
+      expect(s.checks[0]!.status).toBe("passed");
+      expect(s.checks[0]!.output).toMatch(/Tests\s+7 passed/);
+
+      const nodes = Object.fromEntries(s.graph!.nodes.map((n) => [n.id, n]));
+      expect(nodes["src/cachedUpstream.ts#withCache"]).toMatchObject({ status: "new", purposeSource: "plan" });
+      expect(nodes["src/cache.ts#createTtlCache"]?.status).toBe("new");
+      expect(nodes["src/app.ts#createApp"]).toMatchObject({ status: "changed", purposeSource: "plan" });
+      expect(nodes["src/upstream.ts#createMockUpstream"]).toMatchObject({ status: "unchanged", purposeSource: "comment" });
+      expect(nodes["src/server.ts#(module)"]).toMatchObject({ status: "unchanged", purposeSource: "agent" });
+      const edges = s.graph!.edges.map((e) => `${e.from} -> ${e.to}`);
+      expect(edges).toContain("src/cachedUpstream.ts#withCache -> src/cache.ts#cacheKey");
+      expect(edges).toContain("src/cachedUpstream.ts#withCache -> src/cache.ts#createTtlCache");
+      expect(edges).toContain("src/app.ts#createApp -> src/cachedUpstream.ts#withCache");
+
+      expect(ctx.controller.baselineFor("src/app.ts")?.exists).toBe(true);
+      expect(ctx.controller.baselineFor("src/cache.ts")?.exists).toBe(false);
     },
     120_000,
   );
+
+  it("implements the reworked designs after rejections", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await decideAll(ctx, (f) => f.name === "createTtlCache" || f.name === "withCache");
+    expect(ctx.state().phase).toBe("done");
+    expect(ctx.read("src/cache.ts")).toContain("createLruCache");
+    expect(ctx.read("src/app.ts")).toContain("cache.get(key)");
+    expect(ctx.state().applied.map((f) => f.path)).not.toContain("src/cachedUpstream.ts");
+    expect(ctx.state().graph!.nodes.find((n) => n.name === "GET /api/weather/:city")?.purposeSource).toBe("plan");
+  });
+
+  it("pauses on unsaved files without writing anything, then continues on retry", async () => {
+    const ctx = setup();
+    ctx.workspace.dirty.add("src/app.ts");
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await decideAll(ctx);
+    expect(ctx.state().phase).toBe("needsAttention");
+    expect(ctx.state().error?.stage).toBe("save");
+    expect(ctx.read("src/app.ts")).not.toContain("withCache");
+
+    ctx.workspace.dirty.clear();
+    await ctx.controller.retry(ctx.guard());
+    expect(ctx.state().phase).toBe("done");
+    expect(ctx.read("src/app.ts")).toContain("withCache");
+  });
+
+  it("refuses to overwrite code that changed while it was being generated", async () => {
+    class Racing extends FakeAgentAdapter {
+      onImplement?: () => Promise<void>;
+      override async implement(request: { intent: string; functions: PlannedFunction[]; context: FileSnapshot[] }, options: AgentCallOptions): Promise<FileChange[]> {
+        const files = await super.implement(request, options);
+        await this.onImplement?.();
+        return files;
+      }
+    }
+    const agent = new Racing({ delayMs: 0 });
+    const ctx = setup([], agent);
+    agent.onImplement = () => ctx.workspace.write("src/app.ts", "// edited by hand\n");
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await decideAll(ctx);
+    expect(ctx.state().error?.stage).toBe("stale-source");
+    expect(ctx.read("src/app.ts")).toBe("// edited by hand\n");
+    expect(ctx.state().applied).toEqual([]);
+  });
+
+  it("reports a partial write and does not offer to re-apply", async () => {
+    const ctx = setup();
+    ctx.workspace.failWrites.add("src/app.ts");
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await decideAll(ctx);
+    expect(ctx.state().error?.stage).toBe("apply");
+    expect(ctx.state().error?.message).toMatch(/Failed: src\/app.ts/);
+    expect(ctx.state().applied.map((f) => f.path)).toContain("src/cache.ts");
+    await expect(ctx.controller.retry(ctx.guard())).rejects.toBeInstanceOf(GuardError);
+  });
+
+  it("keeps the result when a check fails and can rerun it", async () => {
+    const ctx = setup([node("process.exit(1)")]);
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    await decideAll(ctx);
+    expect(ctx.state().phase).toBe("done");
+    expect(ctx.state().checks[0]?.status).toBe("failed");
+    expect(ctx.state().graph).not.toBeNull();
+    await ctx.controller.rerunChecks(ctx.guard());
+    expect(ctx.state().phase).toBe("done");
+    expect(ctx.state().checks[0]?.id).toBe("r-2");
+  });
+});
+
+describe("the function graph", () => {
+  it("can be built for the current code without a feature", async () => {
+    const ctx = setup();
+    await ctx.controller.showGraph(ctx.guard());
+    const s = ctx.state();
+    expect(s.phase).toBe("idle");
+    expect(s.graph!.nodes.every((n) => n.status === "unchanged")).toBe(true);
+    expect(s.graph!.nodes.find((n) => n.id === "src/app.ts#createApp")?.purpose).toMatch(/Express app/);
+  });
+
+  it("follows the code when the user edits it", async () => {
+    const ctx = setup();
+    await ctx.controller.showGraph(ctx.guard());
+    const before = ctx.state().graph!.nodes.find((n) => n.name === "createMockUpstream")!;
+    await ctx.workspace.write("src/upstream.ts", `// a new first line\n${ctx.read("src/upstream.ts")}`);
+    await ctx.controller.noteSourceChanged();
+    const after = ctx.state().graph!.nodes.find((n) => n.name === "createMockUpstream")!;
+    expect(after.startLine).toBe(before.startLine + 1);
+  });
 });

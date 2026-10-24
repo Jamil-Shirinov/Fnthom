@@ -1,22 +1,37 @@
 // WorkspacePort over a plain directory, for tests. Mirrors the VS Code implementation's contract
-// (full-content writes, per-file outcomes, whole-file references) without an editor.
+// (full-content writes, per-file outcomes) without an editor.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
-import { rangeHash } from "../../src/agent/controller";
-import type { CheckDefinition, FileSnapshot, SourceRef, StepProposal } from "../../src/shared/schema";
+import type { CheckDefinition, FileChange, FileSnapshot } from "../../src/shared/schema";
 import { runCheckProcess } from "../../src/workspace/checks";
 import { contentHash } from "../../src/workspace/hash";
-import type { ApplyFileOutcome, WorkspacePort } from "../../src/workspace/port";
+import { IGNORED_DIR, isSourcePath, type ApplyFileOutcome, type WorkspacePort } from "../../src/workspace/port";
 
 export class NodeWorkspace implements WorkspacePort {
   dirty = new Set<string>();
   failWrites = new Set<string>();
+  /** Called after each file is written, to simulate edits racing the apply. */
+  onWrite?: (path: string) => void;
 
   constructor(
     readonly root: string,
     private readonly checks: CheckDefinition[] = [],
   ) {}
+
+  async listSourceFiles(): Promise<string[]> {
+    const found: string[] = [];
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(path.join(this.root, dir), { withFileTypes: true })) {
+        const rel = dir ? `${dir}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          if (!IGNORED_DIR.test(rel)) await walk(rel);
+        } else if (isSourcePath(rel)) found.push(rel);
+      }
+    };
+    await walk("");
+    return found.sort();
+  }
 
   async snapshot(paths: string[]): Promise<FileSnapshot[]> {
     return Promise.all(
@@ -35,9 +50,9 @@ export class NodeWorkspace implements WorkspacePort {
     return paths.filter((p) => this.dirty.has(p));
   }
 
-  async apply(proposal: StepProposal): Promise<ApplyFileOutcome[]> {
+  async apply(files: FileChange[]): Promise<ApplyFileOutcome[]> {
     const outcomes: ApplyFileOutcome[] = [];
-    for (const file of proposal.files) {
+    for (const file of files) {
       if (this.failWrites.has(file.path)) {
         outcomes.push({ path: file.path, applied: false, saved: false, error: "simulated write failure" });
         continue;
@@ -46,15 +61,9 @@ export class NodeWorkspace implements WorkspacePort {
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(target, file.newContent, { flag: file.kind === "create" ? "wx" : "w" });
       outcomes.push({ path: file.path, applied: true, saved: true, appliedHash: contentHash(file.newContent) });
+      this.onWrite?.(file.path);
     }
     return outcomes;
-  }
-
-  async referencesFor(p: string): Promise<SourceRef[]> {
-    const [snap] = await this.snapshot([p]);
-    if (!snap?.exists) return [];
-    const endLine = snap.content.split("\n").length;
-    return [{ path: p, startLine: 1, endLine, contentHash: rangeHash(snap.content, { startLine: 1, endLine }), status: "resolved" }];
   }
 
   checkDefinitions() {
@@ -66,6 +75,7 @@ export class NodeWorkspace implements WorkspacePort {
   }
 
   async write(p: string, content: string) {
+    await mkdir(path.dirname(path.join(this.root, p)), { recursive: true });
     await writeFile(path.join(this.root, p), content);
   }
 }

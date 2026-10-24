@@ -1,5 +1,7 @@
 # Product interface components
 
-Start with `ArchitectureGraph.tsx` for React Flow nodes/edges and `StepPanel.tsx` for the active step's explanation and controls. Add components when they earn a distinct responsibility; avoid a large design-system scaffold during the weekend.
+- `PlanningView.tsx`: the planning loop. Decided functions, the current proposal with Accept and Reject (with an optional reason), and the upcoming functions the agent reworks after a rejection.
+- `FunctionGraph.tsx`: the React Flow graph of functions and calls, laid out left to right with dagre. Clicking a node shows its pop-up and asks the host to open its code in an editor tab.
+- `ResultPanel.tsx`: what the feature changed, check results, diffs, the graph legend, and export.
 
-Clicking implemented concepts should request source navigation from the host. Planned concepts should display intended behavior without claiming code exists. Questions, approach revisions, and continue actions should be explicit host messages.
+Components send explicit host messages for every action; the host owns state and file access. Add components when they earn a distinct responsibility.

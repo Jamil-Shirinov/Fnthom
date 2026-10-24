@@ -1,12 +1,11 @@
 // WorkspacePort backed by the VS Code API: open buffers first, edits through WorkspaceEdit,
-// document symbols for source references, and configured checks.
+// and configured checks.
 
 import * as vscode from "vscode";
-import { rangeHash } from "../agent/controller";
-import { CheckDefinition, type FileSnapshot, type SourceRef, type StepProposal } from "../shared/schema";
+import { CheckDefinition, type FileChange, type FileSnapshot } from "../shared/schema";
 import { runCheckProcess } from "./checks";
 import { contentHash } from "./hash";
-import type { ApplyFileOutcome, CheckRun, WorkspacePort } from "./port";
+import { IGNORED_DIR, MAX_SOURCE_FILES, isSourcePath, type ApplyFileOutcome, type CheckRun, type WorkspacePort } from "./port";
 
 const normalizeEol = (text: string) => text.replace(/\r\n/g, "\n");
 
@@ -20,6 +19,19 @@ export class VsCodeWorkspace implements WorkspacePort {
   relative(uri: vscode.Uri): string | undefined {
     const rel = vscode.workspace.asRelativePath(uri, false);
     return rel === uri.fsPath || rel.startsWith("..") ? undefined : rel.replace(/\\/g, "/");
+  }
+
+  async listSourceFiles(): Promise<string[]> {
+    const uris = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(this.root, "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"),
+      new vscode.RelativePattern(this.root, "**/{node_modules,dist,out,build,coverage,.git,.vscode,.human-centered-agent}/**"),
+      MAX_SOURCE_FILES * 2,
+    );
+    return uris
+      .map((uri) => this.relative(uri))
+      .filter((p): p is string => !!p && isSourcePath(p) && !IGNORED_DIR.test(p))
+      .sort()
+      .slice(0, MAX_SOURCE_FILES);
   }
 
   async snapshot(paths: string[]): Promise<FileSnapshot[]> {
@@ -45,9 +57,9 @@ export class VsCodeWorkspace implements WorkspacePort {
     return paths.filter((path) => vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === this.uri(path).toString()));
   }
 
-  async apply(proposal: StepProposal): Promise<ApplyFileOutcome[]> {
+  async apply(files: FileChange[]): Promise<ApplyFileOutcome[]> {
     const edit = new vscode.WorkspaceEdit();
-    for (const file of proposal.files) {
+    for (const file of files) {
       const uri = this.uri(file.path);
       if (file.kind === "create") {
         edit.createFile(uri, { overwrite: false, ignoreIfExists: false, contents: new TextEncoder().encode(file.newContent) });
@@ -67,7 +79,7 @@ export class VsCodeWorkspace implements WorkspacePort {
 
     // Report what actually happened to each file, not what was intended.
     const outcomes: ApplyFileOutcome[] = [];
-    for (const file of proposal.files) {
+    for (const file of files) {
       try {
         const doc = await vscode.workspace.openTextDocument(this.uri(file.path));
         const text = normalizeEol(doc.getText());
@@ -87,43 +99,6 @@ export class VsCodeWorkspace implements WorkspacePort {
     return outcomes;
   }
 
-  async referencesFor(path: string): Promise<SourceRef[]> {
-    const uri = this.uri(path);
-    let text: string;
-    try {
-      text = normalizeEol((await vscode.workspace.openTextDocument(uri)).getText());
-    } catch {
-      return [];
-    }
-    const lineCount = text.split("\n").length;
-    const make = (startLine: number, endLine: number, symbol?: string): SourceRef => ({
-      path,
-      symbol,
-      startLine,
-      endLine,
-      contentHash: rangeHash(text, { startLine, endLine }),
-      status: "resolved",
-    });
-
-    try {
-      const symbols = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined>(
-        "vscode.executeDocumentSymbolProvider",
-        uri,
-      );
-      const wanted = new Set([vscode.SymbolKind.Function, vscode.SymbolKind.Class, vscode.SymbolKind.Method, vscode.SymbolKind.Interface]);
-      const refs = (symbols ?? [])
-        .filter((s) => wanted.has(s.kind))
-        .map((s) => {
-          const range = "range" in s ? s.range : s.location.range;
-          return make(range.start.line + 1, range.end.line + 1, s.name);
-        });
-      if (refs.length) return refs;
-    } catch {
-      // Fall through to a whole-file reference when no symbol provider answers.
-    }
-    return [make(1, lineCount)];
-  }
-
   checkDefinitions(): CheckDefinition[] {
     const raw = vscode.workspace.getConfiguration("humanCenteredAgent", this.root).get<unknown[]>("checks", []);
     return raw.flatMap((entry) => {
@@ -137,14 +112,9 @@ export class VsCodeWorkspace implements WorkspacePort {
   }
 }
 
-/** Read-only virtual documents for the two sides of a proposal diff. */
-export const PROPOSAL_SCHEME = "hca-proposal";
+/** Read-only virtual documents for the two sides of a change diff. */
+export const PROPOSAL_SCHEME = "hca-change";
 
-export function proposalUri(proposalId: string, side: "base" | "proposed", path: string) {
-  return vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${path}`, query: new URLSearchParams({ proposalId, side }).toString() });
-}
-
-export function parseProposalUri(uri: vscode.Uri) {
-  const params = new URLSearchParams(uri.query);
-  return { proposalId: params.get("proposalId") ?? "", side: params.get("side") as "base" | "proposed", path: uri.path.slice(1) };
+export function changeUri(side: "before" | "after", path: string, version: string) {
+  return vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${path}`, query: new URLSearchParams({ side, version }).toString() });
 }

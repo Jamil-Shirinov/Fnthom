@@ -6,10 +6,10 @@ Coding agents can generate changes faster than developers can build an understan
 
 The product should transfer an inspectable implementation model to the developer while code is being generated. "Mental model" means a user-facing representation of architecture, behavior, assumptions, and evidence; it does not mean exposing a model's private chain of thought.
 
-Target workflow:
+Target workflow (user direction, Oct 24):
 
 ```text
-Prompt → Mental model → Conceptual code step → Understand → Continue
+Prompt → Plan one function → Accept or reject → … → Implement → Function graph linked to code
 ```
 
 ## Three synchronized layers
@@ -32,16 +32,14 @@ Selecting "Cache lookup" should navigate to its implementation. The current node
 
 1. Developer requests a feature.
 2. Agent reads relevant repository context.
-3. Before edits, the interface shows components, files, data flow, and important assumptions.
-4. Agent proposes one coherent conceptual patch.
-5. The editor previews that patch; the panel explains why it exists, its inputs, outputs, and assumptions.
-6. Developer can apply and continue, ask about the step, modify the approach, or skip its explanation.
-7. The map updates as implementation progresses.
-8. The product exports a concise permanent reference explaining the resulting feature.
+3. Agent proposes the first function or module: what it is for, how it works, its signature and file, and what it calls and is called by. Upcoming functions are listed so the developer sees where the plan is going.
+4. Developer accepts or rejects it. A rejection, optionally with a reason, makes the agent propose a replacement and rework the upcoming functions to account for it.
+5. Planning continues one function at a time until the agent reports the plan complete. No code is written before this point.
+6. The extension implements every accepted function, runs the configured checks, and shows a graph of how the project's functions now connect, with new and changed functions marked.
+7. Clicking a node shows a small pop-up with the function's purpose and opens its code in an editor tab with the responsible lines highlighted.
+8. The product exports a concise reference: decisions, rejected designs, the graph, and check results.
 
-"Skip explanation" and automatic continuation behavior need an explicit product decision; they must not silently imply permission to overwrite developer changes.
-
-Aim for small patches, often around 10–50 changed lines, without enforcing an arbitrary line limit. A single concept can require coordinated edits across files.
+Planning decisions are about meaningful units (functions and modules), not tiny edits, so accepting each one stays fast.
 
 ## Invariants as a differentiator
 
@@ -83,7 +81,7 @@ The intended differentiation is concept-level generation plus a persistent visua
 
 Problem: "Coding agents optimize for code generation velocity, but human understanding does not scale at the same rate."
 
-Solution: show the implementation structure first, generate one conceptual unit at a time, and keep the map synchronized with source and evidence.
+Solution: let the developer shape the implementation one function at a time before code exists, then show the result as a function graph linked directly to source.
 
 Original one-line positioning: "Cursor helps you write less code. We help you understand the code AI writes."
 

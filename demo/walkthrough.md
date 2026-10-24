@@ -1,60 +1,62 @@
 # Tester walkthrough
 
-This guide takes you through the full loop on the caching demo in about five minutes. The agent is the deterministic fake (`humanCenteredAgent.useFakeAgent` is on by default), so every run proposes the same three steps.
+This guide takes you through the whole flow on the caching demo in about five minutes. The agent is a scripted fake (`humanCenteredAgent.useFakeAgent` is on by default). It proposes five functions and has two designs for each, so rejecting a function shows a real rework of the plan.
 
 ## Set up once
 
 You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 
-1. Clone the repository and install the demo's dependencies:
+1. Get the repository and install the demo's dependencies:
 
    ```bash
-   git clone https://github.com/Jamil-Shirinov/calhacks-13.0.git
+   git clone https://github.com/Jamil-Shirinov/calhacks-13.0.git   # or: git pull in your existing clone
    cd calhacks-13.0/demo/app
    npm install
    npm test      # 3 tests pass on the baseline
    ```
 
-2. Install the extension. Either use a prebuilt `human-centered-agent-0.0.1.vsix`:
+   If you tried an earlier version, run `npm run demo:reset` from the repository root first so the demo starts without a cache.
+
+2. Install the extension, either from a prebuilt file:
 
    ```bash
-   code --install-extension path/to/human-centered-agent-0.0.1.vsix
+   code --install-extension path/to/human-centered-agent-0.1.0.vsix --force
    ```
 
-   or build it yourself from the repository root with `npm install && npm run package`. In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**.
+   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.1.0.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
 
-3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. The check the extension runs is configured in `demo/app/.vscode/settings.json`. Trust the workspace when VS Code asks; the extension will not apply edits or run checks in an untrusted workspace.
+3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. Trust the workspace when VS Code asks.
 
-## Run the loop
+## Plan, implement, explore
 
-1. Open the Command Palette (Cmd/Ctrl+Shift+P) and run **Human-Centered Agent: Open Panel**. The panel opens beside the editor.
-2. Keep the prefilled feature request, or type your own, and click **Show the plan**. The map shows five components: the weather endpoint, cache lookup, the upstream call, cache write, and response shaping. Click a component to see its purpose, inputs, outputs, claims and source. Click a source link to jump to that code.
-3. Click **Start first step**. The panel shows what the step does and why, its inputs and outputs, and the files it will touch.
-4. Click **Preview diff** next to a file. VS Code's diff editor shows the current file against the proposal. Nothing has been written yet.
-5. Optionally ask a question in **Ask about this step**. The fake agent gives a canned answer.
-6. Click **Apply & Continue**. The extension writes and saves the files, runs `npm test` in the demo, records the result under **Checks**, and proposes the next step.
-7. Repeat for steps two and three. After the last step the panel says **Feature complete**, the "cached and uncached responses share a schema" claim shows **Supported**, and the demo has 6 passing tests.
-8. Click **Export feature reference** and save `feature-reference.md`. It contains a Mermaid diagram of the map, the steps, and the check results.
+1. Press Cmd/Ctrl+Shift+P and run **Human-Centered Agent: Open Panel**. The panel opens beside the editor.
+2. Optional: click **Show the current function graph** to see the demo before any changes (createApp, the weather route, the mock provider, and the server entry point).
+3. Keep the prefilled request and click **Plan it**. The first proposal appears: `createTtlCache`, with its purpose, how it works, its signature and file, and what calls it. The list below it shows the functions the agent expects to propose next.
+4. Click **✕ Reject…**, type a reason such as "memory has to stay bounded", and click **Reject and rework**. The agent proposes `createLruCache` instead and explains what it changed. Look at the upcoming list: `createApp` now mentions an LRU cache and the tests add an eviction check.
+5. Click **✓ Accept** for the next functions. Try rejecting `withCache` too: the agent switches to caching inside the route, and the plan no longer has a `cachedUpstream.ts` file.
+6. After the last acceptance, the extension writes all the code at once, runs `npm test` in the demo, and switches to the graph.
+7. Click any box in the graph. A pop-up explains what the function does and where that explanation came from, and the function opens in an editor tab with its lines highlighted. Green borders are new functions; yellow borders are changed ones.
+8. In the side panel, click **Diff** next to a file to see it before and after, and **Export as Markdown** to save the decisions and the graph.
 
 ## Things worth trying
 
-- **Edit a file during a proposal.** While a step is waiting for review, change and save a file it touches. The proposal is retired and the panel asks you to regenerate it, because the diff you reviewed is no longer what would be applied.
-- **Leave a file unsaved.** Make an unsaved edit to a file the step touches, then click Apply & Continue. The extension stops and asks you to save or revert first.
-- **Break a test.** While step two is waiting for review, change an expected value in `demo/app/test/weather.test.ts` and save it, then click Apply & Continue. The check fails, the loop pauses with **Rerun checks** and **Continue anyway**, and the applied code is kept. Undo your edit and click Rerun checks to recover.
-- **Revise the approach.** Expand **Revise the approach** and send an instruction. Applied steps stay; the fake agent records the instruction as an assumption.
+- **Leave a file unsaved.** Before your last acceptance, make an unsaved edit to `src/app.ts`. Nothing is written; the panel asks you to save or revert, then **Try again**.
+- **Edit code afterwards.** Add a few lines above a function and save. The graph rebuilds, and clicking the node still highlights the right lines.
+- **Break a test.** After implementing, change an expected value in `test/weather.test.ts`, save, and click **Rerun checks**. The failure and its output appear next to the graph; the code is kept.
+- **Show test files.** Tick the box in the side panel to add the test files to the graph and see which functions they exercise.
 
 ## Start over
 
-Run **Human-Centered Agent: Reset Session** to clear the plan (source files are not touched). To restore the demo's files, run this from the repository root:
+**Reset** in the panel (or **Human-Centered Agent: Reset Session**) clears the session; source files are not touched. To restore the demo's files, run this from the repository root:
 
 ```bash
 npm run demo:reset
 ```
 
-It restores `demo/app/` from the last commit and removes untracked files under `demo/app/src` and `demo/app/test`. Delete an exported `feature-reference.md` yourself.
+It restores `demo/app/` from the last commit and removes untracked files under `demo/app/src` and `demo/app/test`. Delete an exported Markdown file yourself.
 
 ## If something goes wrong
 
+- **"The fake agent only knows the weather demo"**: open the `demo/app` folder, not the repository root.
 - **The check fails with "spawn npm ENOENT"**: VS Code cannot find `npm`. Start VS Code from a terminal where `npm` works (`code .`), or set the check's `executable` to the full path of `npm` in `demo/app/.vscode/settings.json`.
-- **"Open a folder to begin"**: open `demo/app` as a folder first, then reopen the panel.
-- **Anything else**: open **Help › Toggle Developer Tools** and check the console, and note what you clicked. The panel itself was checked in a browser preview and the bundled extension was run against a stubbed VS Code API, but this build has not yet been run inside a real VS Code window.
+- **Anything else**: open **Help › Toggle Developer Tools**, check the console, and note what you clicked.

@@ -1,8 +1,8 @@
 {
   "name": "human-centered-agent",
   "displayName": "Human-Centered Coding Agent",
-  "description": "Understand AI-generated code through a source-linked architecture map and conceptual implementation steps.",
-  "version": "0.0.1",
+  "description": "Plan features with an AI agent one function at a time, then see how your functions connect and jump to their code.",
+  "version": "0.1.0",
   "publisher": "calhacks-13",
   "private": true,
   "license": "MIT",
@@ -57,12 +57,12 @@
         "humanCenteredAgent.useFakeAgent": {
           "type": "boolean",
           "default": true,
-          "description": "Use the deterministic fake agent with the caching fixture instead of Factory Droid."
+          "description": "Use the scripted fake agent (it knows the caching demo in demo/app) instead of Factory Droid."
         },
         "humanCenteredAgent.checks": {
           "type": "array",
           "default": [],
-          "description": "Checks the extension may run after applying a step. Each entry: id, label, executable, args, cwd (workspace-relative), timeoutMs, invariantIds.",
+          "description": "Checks the extension runs after writing the feature's code. Each entry: id, label, executable, args, cwd (workspace-relative), timeoutMs.",
           "items": {
             "type": "object",
             "required": [
@@ -91,12 +91,6 @@
               },
               "timeoutMs": {
                 "type": "number"
-              },
-              "invariantIds": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -111,12 +105,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json --noEmit",
     "test": "vitest run",
     "package": "npm run build && vsce package --no-dependencies",
-    "demo:reset": "git restore --source=HEAD --staged --worktree -- demo/app && git clean -fd -- demo/app/src demo/app/test"
+    "demo:reset": "git restore --source=HEAD --staged --worktree -- demo/app && git clean -fd -- demo/app/src demo/app/test",
+    "preview:fixture": "esbuild scripts/preview-fixture.ts --bundle --platform=node --format=cjs --log-level=warning | node -"
   },
   "dependencies": {
+    "typescript": "5.8.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@dagrejs/dagre": "1.1.5",
     "@types/node": "20.19.43",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
@@ -127,7 +124,6 @@
     "esbuild": "0.25.12",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "typescript": "5.8.3",
     "vite": "6.3.7",
     "vitest": "3.2.7"
   }

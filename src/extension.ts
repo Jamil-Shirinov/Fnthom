@@ -8,12 +8,11 @@ import { FakeAgentAdapter } from "./agent/fakeAdapter";
 import { AgentPanel } from "./panel";
 import { buildFeatureReference } from "./shared/exportMarkdown";
 import { PROTOCOL_VERSION } from "./shared/messages";
-import { ProposalPreviewProvider } from "./workspace/preview";
+import { ChangePreviewProvider } from "./workspace/preview";
+import { isSourcePath } from "./workspace/port";
 import { VsCodeWorkspace } from "./workspace/vscodeWorkspace";
 
 const SECRET_KEY = "humanCenteredAgent.factoryApiKey";
-// Changes here are not "source": dependencies, build output, VCS data, editor settings.
-const IGNORED = /(^|\/)(node_modules|dist|out|coverage|\.git|\.vscode|\.human-centered-agent)(\/|$)/;
 
 export async function activate(context: vscode.ExtensionContext) {
   const root = await pickWorkspaceRoot();
@@ -28,11 +27,11 @@ export async function activate(context: vscode.ExtensionContext) {
     },
     { sessionId: randomUUID(), workspaceId: root?.toString() ?? "" },
   );
-  const previews = new ProposalPreviewProvider();
+  const previews = new ChangePreviewProvider();
 
   const exportReference = async () => {
-    if (!controller.getState().plan) {
-      void vscode.window.showInformationMessage("Start a feature first; there is nothing to export yet.");
+    if (!controller.getState().plan && !controller.getState().graph) {
+      void vscode.window.showInformationMessage("Start a feature or build the graph first; there is nothing to export yet.");
       return;
     }
     const target = await vscode.window.showSaveDialog({
@@ -75,19 +74,13 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   if (workspace && root) {
-    // Edits the session did not make invalidate evidence and references (application-spec.md, section 5).
-    const pending = new Set<string>();
+    // Saved edits move functions around; rebuild the graph so node links keep pointing at the right lines.
     let timer: NodeJS.Timeout | undefined;
     const note = (uri: vscode.Uri) => {
       const rel = workspace.relative(uri);
-      if (!rel || IGNORED.test(rel)) return;
-      pending.add(rel);
+      if (!rel || !isSourcePath(rel)) return;
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        const paths = [...pending];
-        pending.clear();
-        void controller.noteSourceChanged(paths);
-      }, 300);
+      timer = setTimeout(() => void controller.noteSourceChanged(), 300);
     };
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, "**/*"));
     context.subscriptions.push(
@@ -124,7 +117,7 @@ const noWorkspace = {
   snapshot: async () => [],
   dirtyPaths: async () => [],
   apply: async () => [],
-  referencesFor: async () => [],
+  listSourceFiles: async () => [],
   checkDefinitions: () => [],
   runCheck: async () => ({ output: "No workspace folder is open.", status: "error" as const }),
 };

@@ -2,7 +2,7 @@
 // SDK-specific types stay behind this boundary; callers receive validated domain objects.
 
 import type { ActivityEvent } from "../shared/messages";
-import type { FeaturePlan, FileSnapshot, StepProposal } from "../shared/schema";
+import type { FileChange, FileSnapshot, PlannedFunction, PlanningTurn } from "../shared/schema";
 
 export type AgentCallOptions = {
   operationId: string;
@@ -10,24 +10,31 @@ export type AgentCallOptions = {
   onActivity: (event: Omit<ActivityEvent, "operationId" | "at">) => void;
 };
 
+export type Decision = { functionId: string; decision: "accepted" | "rejected"; reason?: string };
+
 export interface AgentAdapter {
-  /** Read-only: inspect context and return a validated plan. Must not modify the workspace. */
-  inspectAndPlan(request: { intent: string; context: FileSnapshot[] }, options: AgentCallOptions): Promise<FeaturePlan>;
-  /** Read-only: propose the current step's full-content file changes against the given snapshots. */
-  proposeStep(
-    request: { plan: FeaturePlan; stepId: string; context: FileSnapshot[] },
+  /**
+   * Read-only: propose the next function, or `next: null` when the plan is complete. `history` holds every
+   * earlier proposal with its decision. After a rejection the agent must rework the upcoming functions
+   * around it and say what changed in `reworkNote`.
+   */
+  planNext(
+    request: { intent: string; context: FileSnapshot[]; history: PlannedFunction[]; lastDecision: Decision | null },
     options: AgentCallOptions,
-  ): Promise<StepProposal>;
-  /** Read-only: answer a question about the plan or the current step. */
-  answerQuestion(
-    request: { plan: FeaturePlan; stepId: string | null; question: string },
+  ): Promise<PlanningTurn>;
+  /**
+   * Read-only: write the code for every accepted function as full-content changes against the given snapshots.
+   * `functions` is the whole planning history; rejected entries say which designs to avoid.
+   */
+  implement(
+    request: { intent: string; functions: PlannedFunction[]; context: FileSnapshot[] },
     options: AgentCallOptions,
-  ): Promise<string>;
-  /** Read-only: replan the remaining steps; applied steps are passed so their history stays frozen. */
-  revisePlan(
-    request: { plan: FeaturePlan; instruction: string; appliedStepIds: string[] },
+  ): Promise<FileChange[]>;
+  /** Read-only: one-sentence purposes for graph nodes that have neither a plan entry nor a doc comment. */
+  describe(
+    request: { nodes: { id: string; name: string; path: string; code: string }[] },
     options: AgentCallOptions,
-  ): Promise<FeaturePlan>;
+  ): Promise<Record<string, string>>;
   cancel(): void;
   dispose(): void;
 }

@@ -4,13 +4,13 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { GuardError, type SessionController } from "./agent/controller";
 import { HostMessage, PROTOCOL_VERSION, UiAction } from "./shared/messages";
-import type { ProposalPreviewProvider } from "./workspace/preview";
+import type { ChangePreviewProvider } from "./workspace/preview";
 import type { VsCodeWorkspace } from "./workspace/vscodeWorkspace";
 
 export type PanelServices = {
   controller: SessionController;
   workspace: VsCodeWorkspace | undefined;
-  previews: ProposalPreviewProvider;
+  previews: ChangePreviewProvider;
   exportReference: () => Promise<void>;
 };
 
@@ -19,6 +19,13 @@ export class AgentPanel implements vscode.Disposable {
   private static current: AgentPanel | undefined;
 
   private readonly disposables: vscode.Disposable[] = [];
+  /** Marks the lines of the function the user clicked in the graph. */
+  private readonly highlight = vscode.window.createTextEditorDecorationType({
+    backgroundColor: new vscode.ThemeColor("editor.findMatchHighlightBackground"),
+    overviewRulerColor: new vscode.ThemeColor("editorOverviewRuler.findMatchForeground"),
+    overviewRulerLane: vscode.OverviewRulerLane.Center,
+    isWholeLine: true,
+  });
 
   static show(context: vscode.ExtensionContext, services: PanelServices) {
     if (AgentPanel.current) {
@@ -57,6 +64,7 @@ export class AgentPanel implements vscode.Disposable {
 
   dispose() {
     AgentPanel.current = undefined;
+    this.highlight.dispose();
     for (const d of this.disposables.splice(0)) d.dispose();
     this.panel.dispose();
   }
@@ -90,30 +98,28 @@ export class AgentPanel implements vscode.Disposable {
           if (!vscode.workspace.isTrusted) return reply("requestError", "Trust this workspace before the agent reads it.");
           await c.startFeature(action.payload.intent, action.payload);
           return reply("requestComplete");
-        case "startStep":
-          await c.startStep(action.payload.stepId, action.payload);
+        case "acceptFunction":
+          if (!vscode.workspace.isTrusted) return reply("requestError", "Trust this workspace before the agent writes code or runs checks.");
+          await c.acceptFunction(action.payload.functionId, action.payload);
           return reply("requestComplete");
-        case "regenerateProposal":
-          await c.regenerateProposal(action.payload.stepId, action.payload);
+        case "rejectFunction":
+          await c.rejectFunction(action.payload.functionId, action.payload.reason, action.payload);
           return reply("requestComplete");
-        case "previewFile":
-          await this.previewFile(action.payload.proposalId, action.payload.path);
+        case "retry":
+          await c.retry(action.payload);
           return reply("requestComplete");
-        case "applyAndContinue":
-          if (!vscode.workspace.isTrusted) return reply("requestError", "Trust this workspace before applying changes or running checks.");
-          await c.applyAndContinue(action.payload.proposalId, action.payload);
+        case "showGraph":
+          if (!this.services.workspace) return reply("requestError", "Open a folder to see its function graph.");
+          await c.showGraph(action.payload);
           return reply("requestComplete");
-        case "askQuestion":
-          await c.askQuestion(action.payload.question, action.payload);
+        case "openNode":
+          await this.openNode(action.payload.nodeId);
           return reply("requestComplete");
-        case "reviseApproach":
-          await c.reviseApproach(action.payload.instruction, action.payload);
+        case "previewChange":
+          await this.previewChange(action.payload.path);
           return reply("requestComplete");
         case "rerunChecks":
           await c.rerunChecks(action.payload);
-          return reply("requestComplete");
-        case "continueAfterFailure":
-          await c.continueAfterFailure(action.payload);
           return reply("requestComplete");
         case "cancel":
           c.cancel(action.payload);
@@ -125,49 +131,45 @@ export class AgentPanel implements vscode.Disposable {
           c.assertGuard(action.payload);
           c.reset();
           return reply("requestComplete");
-        case "selectConcept":
-          // Selection is UI-local; the host keeps no selection state.
-          return;
-        case "openSource":
-          await this.openSource(action.payload.conceptId, action.payload.refIndex);
-          return reply("requestComplete");
       }
     } catch (err) {
       reply("requestError", err instanceof GuardError || err instanceof Error ? err.message : String(err));
     }
   }
 
-  private async previewFile(proposalId: string, path: string) {
-    const state = this.controller.getState();
-    const proposal = state.proposal;
-    const file = proposal?.id === proposalId ? proposal.files.find((f) => f.path === path) : undefined;
-    const baseline = this.controller.baselineFor(proposalId, path);
-    if (!proposal || !file || !baseline) throw new Error("That proposal is no longer current. Regenerate it to preview again.");
-    const stepTitle = state.plan?.steps.find((s) => s.id === proposal.stepId)?.title ?? proposal.stepId;
+  /** Diff of a file as it was before the feature and as the feature wrote it. */
+  private async previewChange(path: string) {
+    const applied = this.controller.getState().applied.find((f) => f.path === path);
+    const before = this.controller.baselineFor(path);
+    const workspace = this.services.workspace;
+    if (!applied || !before || !workspace) throw new Error("That file was not changed by this feature.");
+    const [now] = await workspace.snapshot([path]);
     await this.services.previews.openDiff({
-      proposalId,
       path,
-      baseline: baseline.exists ? baseline.content : null,
-      proposed: file.newContent,
-      stepTitle,
+      before: before.exists ? before.content : null,
+      after: now?.exists ? now.content : "",
+      version: applied.appliedHash,
     });
   }
 
-  private async openSource(conceptId: string, refIndex: number) {
-    const concept = this.controller.getState().plan?.concepts.find((c) => c.id === conceptId);
-    const ref = concept?.sourceRefs[refIndex];
+  /** Opens the function in its own editor tab and highlights its lines. */
+  private async openNode(nodeId: string) {
+    const node = this.controller.getState().graph?.nodes.find((n) => n.id === nodeId);
     const workspace = this.services.workspace;
-    if (!workspace || !ref) throw new Error("That source reference no longer exists.");
+    if (!workspace || !node) throw new Error("That function is no longer in the graph.");
 
-    const uri = workspace.uri(ref.path);
-    if (ref.status !== "resolved") {
-      // Never assert an exact range for a stale reference; open the file instead.
-      await vscode.window.showTextDocument(uri, { viewColumn: vscode.ViewColumn.One });
-      return;
-    }
+    const doc = await vscode.workspace.openTextDocument(workspace.uri(node.path));
     // Serialized lines are one-based and inclusive; editor positions are zero-based.
-    const range = new vscode.Range(ref.startLine - 1, 0, ref.endLine - 1, Number.MAX_SAFE_INTEGER);
-    const editor = await vscode.window.showTextDocument(uri, { viewColumn: vscode.ViewColumn.One, selection: range });
+    const last = Math.min(node.endLine, doc.lineCount) - 1;
+    const first = Math.min(node.startLine - 1, last);
+    const range = new vscode.Range(first, 0, last, doc.lineAt(last).text.length);
+    const editor = await vscode.window.showTextDocument(doc, {
+      viewColumn: vscode.ViewColumn.One,
+      preview: false,
+      selection: new vscode.Range(first, 0, first, 0),
+    });
+    for (const visible of vscode.window.visibleTextEditors) visible.setDecorations(this.highlight, []);
+    editor.setDecorations(this.highlight, [range]);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   }
 

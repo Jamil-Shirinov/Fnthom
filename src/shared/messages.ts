@@ -23,17 +23,14 @@ const action = <T extends string, P extends z.ZodRawShape>(type: T, payload: P) 
 
 export const UiAction = z.discriminatedUnion("type", [
   action("ready", {}),
-  action("startFeature", { ...sessionGuard, intent: z.string().trim().min(1).max(4000), useSelection: z.boolean() }),
-  action("startStep", { ...sessionGuard, stepId: z.string().min(1) }),
-  action("selectConcept", { conceptId: z.string().min(1).nullable() }),
-  action("openSource", { conceptId: z.string().min(1), refIndex: z.number().int().min(0) }),
-  action("previewFile", { ...sessionGuard, proposalId: z.string().min(1), path: WorkspacePath }),
-  action("applyAndContinue", { ...sessionGuard, proposalId: z.string().min(1) }),
-  action("askQuestion", { ...sessionGuard, question: z.string().trim().min(1).max(4000) }),
-  action("reviseApproach", { ...sessionGuard, instruction: z.string().trim().min(1).max(4000) }),
-  action("regenerateProposal", { ...sessionGuard, stepId: z.string().min(1) }),
+  action("startFeature", { ...sessionGuard, intent: z.string().trim().min(1).max(4000) }),
+  action("acceptFunction", { ...sessionGuard, functionId: z.string().min(1) }),
+  action("rejectFunction", { ...sessionGuard, functionId: z.string().min(1), reason: z.string().trim().max(2000).optional() }),
+  action("retry", { ...sessionGuard }),
+  action("showGraph", { ...sessionGuard }),
+  action("openNode", { nodeId: z.string().min(1) }),
+  action("previewChange", { path: WorkspacePath }),
   action("rerunChecks", { ...sessionGuard }),
-  action("continueAfterFailure", { ...sessionGuard }),
   action("cancel", { sessionId: z.string().min(1) }),
   action("export", {}),
   action("resetSession", { sessionId: z.string().min(1) }),
@@ -55,7 +52,6 @@ const hostMessage = <T extends string, P extends z.ZodTypeAny>(type: T, payload:
 export const HostMessage = z.discriminatedUnion("type", [
   hostMessage("stateSnapshot", ApplicationState),
   hostMessage("activity", ActivityEvent),
-  hostMessage("answer", z.object({ questionId: z.string(), answer: z.string() })),
   hostMessage("requestError", z.object({ message: z.string(), nextAction: z.string().optional() })),
   hostMessage("requestComplete", z.object({})),
 ]);

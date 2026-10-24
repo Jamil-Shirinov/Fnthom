@@ -2,275 +2,212 @@
 
 ## 1. Purpose and status
 
-Implement a desktop VS Code extension that turns a feature request into an inspectable architecture map, then generates and applies one conceptual code change at a time. The developer should understand each component's role and be able to navigate from the map to actual source.
+Implement a desktop VS Code extension in which the developer plans a feature with the agent one function at a time, then sees the implemented code as a graph of how the project's functions connect. Each proposed function or module is explained before any code exists, and the developer accepts or rejects it. A rejection makes the agent rework the rest of the plan. Once every function is accepted, the extension writes all the code at once, runs the configured checks, and builds a function graph from the actual source. Clicking a node shows a pop-up with its purpose and opens its code in an editor tab with the lines highlighted.
 
-This is the proposed MVP implementation contract, written before application code exists. Requirements below make concrete choices where earlier documents left implementation details open. They are design defaults, not claims that Droid integration has already been validated. Changes should be recorded in [the decision record](../decisions.md).
+This contract replaces the earlier "architecture map plus one applied step at a time" design after the user's direction on Oct 24 (see [the decision record](../decisions.md)). Requirements below are design defaults for the MVP, not claims that the Droid integration has been validated. The current implementation uses a deterministic fake agent.
 
-The [product concept](../product.md) explains the rationale. This specification governs the initial application behavior where it is more specific than earlier illustrative designs.
+The [product concept](../product.md) explains the rationale. This specification governs application behavior where it is more specific than other documents.
 
 ## 2. Scope
 
 ### Required
 
 - One local workspace folder and one active feature session.
-- TypeScript extension host, React webview, React Flow graph, Factory Droid adapter.
-- Repository inspection, structured planning, and one-step proposal generation.
-- Native diff preview, version-checked application, and source navigation.
-- Questions about the current step and revision of the remaining approach.
-- Explicit verification evidence and local session persistence.
-- Markdown export and an installable VSIX.
+- TypeScript extension host, React webview, React Flow graph, and an agent adapter (Factory Droid as the target; a fake adapter until then).
+- Planning one function at a time with Accept and Reject, and a reworked plan after each rejection.
+- Implementation of all accepted functions in one validated, version-checked write.
+- A function graph built from source, with new and changed functions marked, a pop-up per node, and navigation that highlights the node's code.
+- Configured checks after implementation, diffs of what changed, and Markdown export.
+- An installable VSIX.
 
 ### Deferred
 
 - Editor fork, hosted backend, accounts managed by this application, collaboration, vector search, and multiple model providers.
-- Autonomous Flow mode, quizzes, automatic dependency installation, arbitrary terminal execution by the model, and background multi-agent work.
+- Session persistence across window reloads (state is in memory for the MVP).
+- Asking free-form questions about a proposal, and editing a proposal in place instead of rejecting it.
+- Graphs for languages other than TypeScript and JavaScript.
 - Remote/browser workspaces, multiple workspace roots in one session, binary edits, file deletion/rename, and editing files outside the selected root.
-
-The MVP may span multiple existing text files and create text files. It must not enforce a fixed changed-line limit; conceptual coherence takes precedence.
 
 ## 3. User experience
 
-Register commands under a single product category. Proposed command IDs use the `humanCenteredAgent` prefix:
+Commands use the `humanCenteredAgent` prefix:
 
 | Command | Behavior |
 | --- | --- |
-| `humanCenteredAgent.open` | Open or reveal the panel; restore local state if available |
+| `humanCenteredAgent.open` | Open or reveal the panel |
 | `humanCenteredAgent.setApiKey` | Collect the Factory key through a masked input and store it in secret storage |
-| `humanCenteredAgent.export` | Export the current feature reference through a save dialog |
+| `humanCenteredAgent.export` | Export the plan and graph as Markdown through a save dialog |
 | `humanCenteredAgent.resetSession` | Confirm discarding session metadata; never reset source files |
 
-If no folder is open, show an actionable empty state. If several roots are open, require selection of one root for the session. Require a trusted workspace before model-driven repository operations or check execution.
-
-### Layout
-
-- **Header:** feature intent, connection/session status, progress, cancel, and export.
-- **Graph:** components and labeled data-flow edges; selection independent of the active generation step.
-- **Step panel:** purpose, inputs, outputs, assumptions, invariants, changed files, source links, and check results.
-- **Conversation area:** focused questions and approach revisions.
-- **Native editor:** actual source and before/after previews, opened beside the panel.
-
-The graph must distinguish planned, active, applied, and stale implementation. Verification is a separate badge; a passing check must not recolor every claim as proven. Use text/icons as well as color. Controls must be keyboard accessible and reflect the active VS Code theme.
+If no folder is open, show an actionable empty state. If several roots are open, require selection of one root. Require a trusted workspace before the agent reads the repository, before writing code, and before running checks.
 
 ### Primary flow
 
-1. Enter a feature request, optionally using currently selected files as context seeds.
-2. Show repository inspection activity and then a structured plan with a suggested step order.
-3. Developer chooses **Start first step**; generate only that step.
-4. Show the explanation and changed-file list. **Preview diff** opens a native diff for each selected file.
-5. **Apply & Continue** applies the reviewed proposal, saves affected documents, runs configured checks, and prepares the next step if checks pass or no checks are configured.
-6. On check failure, keep the applied code and pause for repair, revision, or **Continue with failed checks**. The latter must retain visible failed evidence.
-7. After the last step, show completion, unresolved claims, and export.
+1. Enter a feature request and choose **Plan it**. The agent reads bounded repository context.
+2. The agent proposes one function or module: name, kind, file, whether it is new or changes existing code, signature, purpose, how it works, what it calls and what calls it. The panel also lists the upcoming functions the agent expects to propose.
+3. **Accept** records the decision and asks for the next proposal.
+4. **Reject** takes an optional reason. The agent proposes a replacement and reworks the upcoming functions around the rejection, and says what it changed. The rejected design stays visible in the history.
+5. When the agent reports the plan complete, the extension implements every accepted function, applies the files, saves them, and runs the configured checks.
+6. The panel switches to the function graph. New and changed functions are marked. Clicking a node shows a pop-up (purpose, file and lines, calls and callers, where the purpose came from) and opens the code in an editor tab with those lines highlighted.
+7. The side panel lists changed files with before/after diffs, check results with rerun, the decisions, and export.
 
-**Ask about this** cannot mutate code or advance the step. **Modify approach** invalidates any unapplied proposal and replans remaining work. **Collapse explanation** only changes presentation; it does not apply or authorize edits. There is no automatic Flow mode in the MVP.
+**Show the current function graph** builds the graph without a feature. Failed checks never hide the graph; they stay visible with their output.
+
+### Layout
+
+- **Header:** feature request, phase, live agent activity, cancel, reset, and errors with **Try again**.
+- **Planning view:** progress, decided functions (accepted or rejected with reason), the current proposal card, and upcoming functions.
+- **Graph view:** React Flow graph laid out left to right (callers left of callees), a colored stripe per file, a border for new and changed functions, and dashed edges for calls through an interface.
+- **Result panel:** summary, checks, changed files with diffs, legend, a test-file toggle, export, and rebuild.
+
+Use text as well as color for every state, keep controls keyboard accessible, and follow the active VS Code theme.
 
 ## 4. Module boundaries
 
 | Location | Responsibility |
 | --- | --- |
-| `src/extension.ts` | Activation, commands, service construction, disposal |
-| `src/panel.ts` | Webview lifecycle, local assets, validated message routing |
-| `src/agent/session.ts` | Droid adapter, credentials, capability discovery, stream/cancellation lifecycle |
-| `src/agent/planner.ts` | Context-to-plan requests and plan validation |
-| `src/agent/stepGenerator.ts` | Current-step proposals and focused explanations |
-| `src/agent/controller.ts` | Authoritative state machine, operation queue, revisions, recovery |
-| `src/workspace/context.ts` | Bounded context selection and document snapshots |
-| `src/workspace/edits.ts` | Proposal validation, stale checks, application, reconciliation |
-| `src/workspace/preview.ts` | Read-only virtual before/after documents and native diffs |
-| `src/workspace/sourceLinks.ts` | Navigation, decorations, anchor resolution/invalidation |
-| `src/workspace/checks.ts` | Configured check execution, cancellation, evidence |
-| `src/workspace/storage.ts` | Versioned local state, recovery journal, Markdown export |
-| `src/shared/schema.ts` | Domain schemas and inferred TypeScript types |
-| `src/shared/messages.ts` | Versioned UI/host protocol |
-| `webview/src/vscode.ts` | Typed message bridge; no credentials or filesystem access |
-| `webview/src/App.tsx` | Application shell and host-state rendering |
-| `webview/src/components/` | Graph, step panel, questions, and status components |
+| `src/extension.ts` | Activation, commands, service construction, file watching, disposal |
+| `src/panel.ts` | Webview lifecycle, local assets, validated message routing, node navigation and highlight, diffs |
+| `src/agent/adapter.ts` | Application-owned agent interface |
+| `src/agent/fakeAdapter.ts`, `fakeScenario.ts` | Deterministic agent and the scripted caching scenario with two designs per function |
+| `src/agent/controller.ts` | Authoritative state machine, operations, revisions, recovery |
+| `src/workspace/port.ts` | What the controller needs from the editor and file system |
+| `src/workspace/vscodeWorkspace.ts` | The VS Code implementation of the port |
+| `src/workspace/edits.ts` | Validation of generated file changes against snapshots |
+| `src/workspace/codeGraph.ts` | Function graph from source with the TypeScript compiler API |
+| `src/workspace/preview.ts` | Read-only before/after documents for diffs |
+| `src/workspace/checks.ts` | Configured check execution, cancellation, bounded output |
+| `src/shared/schema.ts`, `messages.ts`, `exportMarkdown.ts` | Portable domain schemas, protocol, and export |
+| `webview/src/` | Bridge, application shell, planning view, graph, result panel |
 
-These are implementation destinations, not a requirement to create empty modules upfront. Use one root package. Shared modules must remain portable and must not import the VS Code, Droid, Node filesystem, or React runtimes.
+Shared modules must stay portable: no imports from VS Code, Droid, Node, or React runtimes.
 
 ## 5. Domain contracts
 
-Define runtime schemas first and infer TypeScript types from them. All persisted or cross-process values must be validated. IDs are opaque strings; paths are normalized workspace-relative paths. Serialized source lines are one-based and inclusive; convert to zero-based editor positions only at the VS Code boundary.
+Define runtime schemas first and infer TypeScript types from them. Validate everything that crosses a process or comes from the agent. Paths are normalized workspace-relative paths; serialized lines are one-based and inclusive and convert to zero-based positions only at the VS Code boundary.
 
-### Plan
+### Planning
 
-`FeaturePlan` contains `id`, `revision`, `intent`, `summary`, `concepts`, `edges`, `steps`, and `assumptions`.
+- `FunctionProposal`: `id`, `name`, `kind` (`function | module | route | test`), `path`, `change` (`new | change`), `signature`, `purpose`, `details`, `calls`, `calledBy`, and optional `replacesId` when it reworks a rejected proposal.
+- `PlannedFunction`: a proposal plus `status` (`proposed | accepted | rejected`) and optional `rejectionReason`.
+- `FeaturePlan`: `intent`, `summary`, every proposal in order (rejected ones included), `upcoming` (name and summary per expected function), and `reworkNote` after the latest rejection.
+- `PlanningTurn` (agent output): `summary`, `next` (a proposal, or `null` when planning is complete), `upcoming`, optional `reworkNote`.
 
-- `Concept`: stable `id`, `title`, `purpose`, `inputs`, `outputs`, `intendedPaths`, `sourceRefs`, and `invariants`.
-- `DataFlowEdge`: `id`, `fromConceptId`, `toConceptId`, and `label`. Data flow may contain cycles.
-- `ImplementationStep`: `id`, `title`, `conceptIds`, `dependsOnStepIds`, and `expectedBehavior`.
-- `Invariant`: `id`, `claim`, `sourceRefs`, `evidenceIds`, and derived status `unverified | supported | failed | stale`.
+At most one function is `proposed` at a time. Proposal ids must be unique within a plan.
 
-Reject duplicate IDs, unknown references, cyclic step dependencies, and an empty implementation plan. Step dependencies form a DAG; data-flow edges do not determine implementation ordering. Preserve IDs for unchanged concepts across revisions. Freeze already-applied step history; mark replaced future steps superseded rather than rewriting history.
-
-### Source snapshots and references
-
-`FileSnapshot` contains `path`, `exists`, `content`, `contentHash`, and optional in-memory `documentVersion`. Hash the exact string presented to the model, including line endings. Prefer open editor document contents to disk contents.
-
-`SourceRef` contains `path`, optional `symbol`, `startLine`, `endLine`, `contentHash`, and resolution status `resolved | stale | missing`. Only resolved references can navigate directly. Planned paths are not source references.
-
-### Proposal
+### Implementation
 
 ```ts
-type ProposedFile =
+type FileChange =
   | { kind: "update"; path: string; baseHash: string; newContent: string }
   | { kind: "create"; path: string; newContent: string };
-
-type StepProposal = {
-  id: string;
-  planRevision: number;
-  stepId: string;
-  explanation: {
-    purpose: string;
-    inputs: string[];
-    outputs: string[];
-    assumptions: string[];
-  };
-  files: ProposedFile[];
-  invariantIds: string[];
-  suggestedCheckIds: string[];
-};
 ```
 
-For the small MVP fixture, use full replacement contents rather than model-authored patch syntax. Compute the displayed diff in the extension. A proposal must contain actual changes, exactly one entry per path, and only the current step's work. Before applying a proposal touching a previously unread file, capture its baseline and regenerate against that baseline. The host must validate hashes against its snapshots; model-provided hashes are not authoritative.
+Use full replacement contents, not patch syntax, with exactly one entry per path. The host validates hashes against its own snapshots; agent-provided hashes are never authoritative. Reject absolute paths, traversal, blocked locations (`.git`, `node_modules`, `dist`, `.env*`), unsupported file types, no-op updates, and payloads over 2 MiB.
 
-Reject absolute paths, traversal, paths resolving outside the root through symlinks, unsupported file types, and oversized payloads. Preserve exact proposed content; do not silently reformat it after review.
+`AppliedFile` records `path`, `baseHash` (null for created files) and `appliedHash`.
 
-### Evidence and state
+### Graph
 
-`CheckDefinition` contains `id`, `label`, executable, argument array, workspace-relative working directory, timeout, and explicitly associated invariant IDs. It is configured by the developer or fixture, never executed directly from model text.
+- `GraphNode`: `id` (`path#name`), `name`, `kind` (`function | method | route | module | test`), `path`, `startLine`, `endLine`, `exported`, `bodyHash`, optional `purpose` and `purposeSource` (`plan | comment | agent`), and `status` (`new | changed | unchanged`).
+- `GraphEdge`: `from`, `to`, `kind`: `call` (direct), `dispatch` (a call through an interface or object type that a function returns, so any implementer may run), or `registers` (a function setting up a route).
 
-`CheckResult` contains `id`, `checkId`, `stepId`, timestamps, exit code if available, bounded output, status `passed | failed | cancelled | timed-out | error`, and the source fingerprint at execution time.
+Nodes: top-level function declarations and `const` arrow or function expressions, class methods, Express-style `app.METHOD("/path", handler)` registrations, and a module node for files whose top-level code calls project functions. Test files are graphed as one node each and hidden by default.
 
-`ApplicationState` contains schema version, session ID, state revision, workspace identity, plan, current step, proposal, application history, evidence, questions/answers, operation ID, phase, and any recoverable error. Keep credentials and raw SDK objects out of this structure.
+Purposes, in order of preference: the accepted plan entry with the same name and file, the doc comment directly above the declaration, then an agent description. A node with none says so.
 
-Invariant status is derived from explicit source/evidence associations: current passing evidence may support a claim, a relevant failing assertion marks it failed, and source changes invalidate prior support. An infrastructure error does not by itself demonstrate a false invariant. Claims with no relevant evidence remain unverified. For the MVP, conservatively invalidate check evidence on any workspace source change; exclude extension-owned storage and generated build output from change tracking.
+Status compares each node's `bodyHash` with the graph built just before implementation.
+
+### Checks and state
+
+`CheckDefinition` has `id`, `label`, executable, argument array, workspace-relative working directory, and timeout. It comes from settings, never from model text. `CheckResult` records timestamps, exit code, bounded output with color codes stripped, and status `passed | failed | cancelled | timed-out | error`.
+
+`ApplicationState` has schema version, session id, state revision, workspace identity, phase, plan, applied files, check results, graph, operation id, and a recoverable error. Credentials and SDK objects never enter it.
 
 ## 6. State machine and concurrency
 
-Main phases:
-
 ```text
-idle → inspecting → planReady → proposing → previewReady
-                                             ↓
-                                          applying
-                                             ↓
-                                          checking
-                                             ↓
-                              stepReady / needsAttention / complete
+idle → planning → reviewing ──accept──→ planning → … → (plan complete)
+                     │                                       ↓
+                     └──reject──→ reworking → reviewing   implementing → checking → done
 ```
 
-- `stepReady` enters `proposing` for the next dependency-ready step.
-- Questions run as read-only operations and return to the prior stable phase.
-- Revision enters `revising`, invalidates the pending proposal, and returns to `planReady` with applied history preserved.
-- Generation failure/cancellation returns to the prior stable phase with a visible error/status.
-- Stale source invalidates the proposal and requires regeneration; it never advances the step.
-- Apply failure enters `needsAttention` with actual file outcomes.
-- Failed/cancelled/errored checks enter `needsAttention`; skipped checks are labeled as not run.
-- Completion means all intended steps were applied, not that every invariant was verified.
+- Planning, reworking and implementing failures, including cancellation, enter `needsAttention` with **Try again**, which repeats the failed step from the last decision.
+- Unsaved target files and code that changed while it was being generated enter `needsAttention`; nothing is written, and **Try again** regenerates.
+- A partial write enters `needsAttention` with the real per-file outcomes and no automatic retry.
+- Failed checks do not block: the session reaches `done` with the failures shown and a rerun.
+- Building the graph without a feature keeps the current phase.
 
-The controller serializes mutating operations and permits one active Droid turn. Assign operation IDs and ignore late events from superseded/cancelled operations. Reject duplicate apply requests for a consumed proposal. Disable incompatible UI controls while busy; enforce the same guards in the host.
-
-Cancellation must interrupt model work/check processes and preserve applied code. Once file application begins, finish reconciliation before accepting another action. Do not pretend cancellation undoes applied edits.
+One agent turn or mutation runs at a time. Every session-changing action carries the state revision the UI saw; the host rejects stale or duplicate decisions. Late results from superseded or cancelled operations are dropped. Cancellation is ignored while files are being written so the outcome can be reported.
 
 ## 7. Host/webview protocol
 
-Use discriminated message schemas with `protocolVersion`, `requestId`, `type`, and typed payload. Session-changing actions additionally include `sessionId`, expected state revision, and proposal/step IDs where applicable.
+Messages are discriminated unions with `protocolVersion`, `requestId`, `type` and a typed payload.
 
-UI actions: `ready`, `startFeature`, `startStep`, `selectConcept`, `openSource`, `previewFile`, `applyAndContinue`, `askQuestion`, `reviseApproach`, `regenerateProposal`, `rerunChecks`, `continueAfterFailure`, `cancel`, `export`, and `resetSession`.
+UI actions: `ready`, `startFeature`, `acceptFunction`, `rejectFunction` (optional reason), `retry`, `showGraph`, `openNode`, `previewChange`, `rerunChecks`, `cancel`, `export`, `resetSession`.
 
-Host messages: `stateSnapshot`, `activity`, `answer`, `requestError`, and `requestComplete`. A state snapshot is authoritative. UI-local graph positions, selection, and collapsed panels must not overwrite domain state.
+Host messages: `stateSnapshot` (authoritative), `activity`, `requestError`, `requestComplete`. Node selection, the test-file toggle and graph positions are UI-local. Render model text as text.
 
-On `ready`, send the current full state. Use a monotonically increasing state revision to reject stale actions and recover from webview reloads. Validate every incoming path/ID against host state rather than trusting the UI's payload. Render model text as text or sanitized Markdown; do not execute model-supplied HTML.
+## 8. Agent adapter
 
-## 8. Droid adapter
+The application-owned interface has `planNext`, `implement`, `describe`, `cancel` and `dispose`:
 
-Expose an application-owned interface for `inspectAndPlan`, `proposeStep`, `answerQuestion`, `revisePlan`, `cancel`, and `dispose`. SDK-specific message types stay inside the adapter. Return validated domain objects and normalized activity events to the controller.
+- `planNext({ intent, context, history, lastDecision })` returns a `PlanningTurn`. After a rejection it must rework the upcoming functions and explain the change.
+- `implement({ intent, functions, context })` returns full-content file changes for the accepted functions; rejected entries say which designs to avoid.
+- `describe({ nodes })` returns one-sentence purposes for graph nodes without a plan entry or doc comment.
 
-Before implementation, verify the installed SDK/CLI capabilities against [the integration guide](../integrations/factory-droid.md). Pin compatible versions and test executable discovery, credentials, structured output, tool discovery, cancellation, and session disposal from the extension host.
+All three are read-only. Proposal-only operation remains the integration gate for Factory Droid: discover tools, disable mutation, execution and delegation, and verify the repository is unchanged after every turn. Require structured output; invalid output never produces edits.
 
-Proposal-only operation is an integration gate: discover tools, disable all mutation/execution/delegation paths, and verify the repository is unchanged after plan/proposal/question turns. Prompt instructions alone do not satisfy this gate. Unsupported or unknown capabilities should fail the gate with a useful diagnostic. If the boundary cannot be enforced, keep the real-workspace integration disabled and revise the design before proceeding.
+The fake adapter serves a scripted caching scenario for `demo/app`: five functions with two designs each. Rejecting a function switches to its other design and rewrites the remaining plan to match; all 32 combinations typecheck and pass their tests.
 
-Do not assume SDK stream events are conceptual steps. Require explicit structured results for plans/proposals. Missing or invalid structured output must not produce edits; permit one bounded repair request, then surface a recoverable error. User-triggered retry is available after errors. Do not retry application automatically.
+## 9. Context and applying code
 
-Pass accepted code, relevant check outcomes, and current source snapshots back to the session before generating subsequent work. If SDK context is lost, create a new session from persisted application state and current source rather than pretending the prior context exists.
-
-## 9. Context, previews, and applying code
-
-Use bounded context: project metadata, a filtered tree, selected files, and relevant imports. Exclude dependencies, build output, binary files, credential files, and extension session storage by default. Start with a 100 KiB per-file limit and 1 MiB total context limit; expose omissions and request narrower scope rather than truncating source silently. Use a 2 MiB total proposal limit. These are tunable MVP defaults, not model context-window claims.
-
-Virtual previews must be immutable for a particular proposal ID. Show the exact baseline and proposed contents, including a clearly labeled empty baseline for new files.
+Context is the workspace's source files (TypeScript and JavaScript, excluding dependencies, build output, VCS data and editor settings), smallest first up to 512 KiB, with open editor buffers preferred over disk.
 
 Apply procedure:
 
-1. Validate proposal identity, plan revision, step readiness, paths, and schemas.
-2. Re-read all touched files, including in-memory content. Require matching update baselines and continued nonexistence for creates.
-3. If a touched document already has unsaved changes, pause application and offer to save it or regenerate later; never save unrelated user changes implicitly.
-4. Persist an application journal with baseline/proposed hashes and pending status.
-5. Submit the coherent edit through the VS Code workspace edit API; inspect the result and actual document contents.
-6. Save only affected documents. Record applied/saved outcomes independently; a save failure retains visible recovery state and blocks checks/continuation.
-7. Refresh source anchors, record the applied proposal ID, and run checks once source is saved.
+1. Validate the change set's shape.
+2. Stop if any target file has unsaved changes.
+3. Re-read every target and validate: update baselines must match, created files must still not exist.
+4. Keep the baselines in memory for diffs, then submit one `WorkspaceEdit`.
+5. Inspect each document's actual content, save only touched documents, and record per-file outcomes.
+6. Run checks, then build the graph from the saved source.
 
-Do not assume file creation mixed with text edits has transactional rollback. If the result is partial, show which files changed and offer reconciliation/regeneration. Never blindly reapply a proposal or automatically restore baselines over newer user changes. Native Undo remains available, but subsequent document changes must invalidate the session's source/evidence state.
-
-Resolve symbols against actual editor symbols when available. A reference without a symbol may navigate by range only while its content hash matches. When a symbol cannot be uniquely resolved, mark the reference stale and offer the file without asserting an exact range. Do not keep generated line numbers indefinitely.
+After implementation, saving a source file rebuilds the graph so node links keep pointing at the right lines. Native undo remains available.
 
 ## 10. Checks and failure recovery
 
-Checks run through the host using configured executable/argument arrays without model-supplied shell interpolation. Run them sequentially, stream bounded output, and retain pass/fail evidence. Default timeout is 60 seconds per check and retained output is capped at 64 KiB per check with a truncation notice. Cancellation must clean up the child process and its descendants where supported.
+Checks run sequentially through the host with argument arrays, a shell only on Windows, a 60-second default timeout, and output capped at 64 KiB. Cancellation stops the process group. With no configured checks, the graph is shown without verification results.
 
-The model can suggest known check IDs or describe additional checks; unknown suggestions are displayed, not executed. With no configured checks, mark verification not run and permit progression without claiming success.
+Errors identify the stage (`planning`, `invalid-output`, `stale-source`, `save`, `apply`, `graph`, `export`) and the next action.
 
-If checks fail, offer rerun, revision/repair, and explicit continuation with failed evidence. A repair is another reviewed proposal against current source, not an automatic hidden edit. A check that changes workspace source invalidates that evidence and requires reconciliation; do not treat formatters as read-only verification.
+## 11. Export
 
-Errors must identify the failed stage and next action: authentication, executable discovery, invalid output, stale source, file application, save, checks, persistence, or export. Keep useful diagnostics while redacting credentials. Preserve the most recent valid state.
-
-## 11. Persistence and export
-
-Store versioned session JSON and application journals in the extension's workspace storage location. Do not write runtime state to `agents/`. Use atomic temporary-file replacement for state files where available. Persist stable transitions and application intent; do not persist every streaming delta.
-
-On restore, validate schema/workspace identity, reconcile pending journals against actual source, and mark interrupted operations. Never replay an apply automatically. Resume at a stable state; require regeneration if source no longer matches. Unsupported schema versions must produce a clear reset/export option rather than a crash.
-
-Export Markdown through a save dialog with intent, component responsibilities, data flow, source references, applied steps, assumptions, check summaries, and unresolved/failed/stale claims. Export paths and lines should refer to actual source; unresolved references must be labeled. Export does not require an additional model call.
+Export Markdown through a save dialog: intent, summary, accepted functions with details, rejected designs with reasons, a Mermaid diagram of the graph, each function's location and purpose, changed files, and check results. No model call is needed.
 
 ## 12. Build and configuration
 
-Use one root `package.json` and lockfile. Bundle the extension for its Node host and the React app for its browser environment separately. Keep output in `dist/` and `webview/dist/`. Restrict webview resources to bundled assets and use a content security policy with nonces for executable scripts.
-
-Provide root scripts for `dev`, `build`, `typecheck`, `test`, and `package`, with documented behavior. Add a VS Code launch configuration for F5 development. `package` must build first and include UI assets and required runtime dependencies in the VSIX. Choose exact tool versions during scaffolding, after checking compatibility.
-
-Settings should cover optional Droid executable path, optional model ID, and configured checks. Credentials use secret storage. Do not expose credentials through webview state or exported documents. Default to the account's available model rather than embedding an unverified model ID.
+One root `package.json` and lockfile. esbuild bundles the host (minified, including the TypeScript compiler for the graph) to `dist/`; Vite bundles the webview to `webview/dist/` with fixed asset names. The webview CSP allows only bundled scripts with a nonce. Settings cover the optional Droid executable path, optional model id, the fake-agent switch, and checks. Credentials use secret storage.
 
 ## 13. Acceptance criteria
 
 | Scenario | Required result |
 | --- | --- |
-| Open installed extension | Panel loads bundled UI; missing prerequisites have actionable errors |
-| Request demo feature | Valid map appears before edits; repository remains unchanged |
-| Generate first step | Only one coherent proposal appears with explanation and file previews |
-| Ask a question | Answer arrives without source mutation or step advancement |
-| Apply twice or replay message | Proposal applied at most once |
-| Modify source after proposal | Application blocked; newer source preserved |
-| Existing unsaved source | Application pauses before saving user edits |
-| Create target appears meanwhile | Proposal rejected as stale |
-| Apply/save failure | Real outcomes shown; no false step completion or automatic replay |
-| Run relevant checks | Actual outcomes and covered claims displayed |
-| Check fails | Applied code remains; continuation requires explicit choice |
-| Edit applied source manually | References/evidence become stale or are re-resolved |
-| Select implemented graph node | Correct file/range opens or stale/missing state is explained |
-| Revise approach | Applied history retained; pending proposal invalidated |
-| Cancel/close/reload | Work stops or reconciles; session can recover without duplicated edits |
-| Finish feature | Export describes actual code and unresolved claims |
-| Install VSIX on demo machine | UI, SDK startup, source navigation, and full walkthrough work |
+| Request the demo feature | First function proposal appears with explanation and upcoming functions; repository unchanged |
+| Accept | Next proposal appears; the accepted function moves to the history |
+| Reject with a reason | A replacement appears with a rework note; upcoming functions change to match; the rejected design stays visible |
+| Decide twice or on a stale revision | Rejected without changing state |
+| Last acceptance | All accepted functions are written at once and checks run |
+| Target file unsaved or changed meanwhile | Nothing is written; the user can try again |
+| Partial write | Real outcomes shown; no automatic replay |
+| Check fails | Code is kept; the graph still appears with the failure and a rerun |
+| Graph after implementation | New and changed functions marked; calls, interface calls and routes connected |
+| Click a node | Pop-up with purpose; its code opens in an editor tab with its lines highlighted |
+| Edit and save code afterwards | Graph rebuilds with current line numbers |
+| Install VSIX on the demo machine | Full walkthrough works |
 
-Implement focused schema/controller/edit tests and extension integration tests where editor behavior matters. Use a fake Droid adapter for deterministic failure/recovery tests, plus a real SDK smoke test for the capability gate. A manual end-to-end demo remains required.
+## 14. Implementation sequence
 
-## 14. Suggested implementation sequence
-
-1. Root tooling, shared schemas, fake adapter, panel, and graph with fixtures.
-2. Context snapshots, immutable diffs, stale-source checks, and one real VS Code edit.
-3. Real Droid adapter and proposal-only capability gate.
-4. Controller, questions, revisions, check evidence, and cancellation.
-5. Source-anchor invalidation, persistence/recovery, and Markdown export.
-6. Repeatable demo fixture, VSIX packaging, and fresh-install walkthrough.
-
-The target demo language/framework, Factory account/model access, and exact dependency versions remain open. They do not block implementing portable schemas, fake-adapter UI, or the edit controller. No application code is included in this specification change.
+1. Done: tooling, schemas, protocol, fake agent, planning loop, implementation, checks, graph, panel, export, packaging.
+2. Next: the real Factory Droid adapter behind the same interface, and its proposal-only gate.
+3. Then: session persistence and recovery, and graph support beyond TypeScript and JavaScript if the demo needs it.

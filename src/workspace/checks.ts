@@ -6,6 +6,8 @@ import * as path from "node:path";
 import type { CheckDefinition } from "../shared/schema";
 import type { CheckRun } from "./port";
 
+const ANSI_ESCAPE = /\u001b\[[0-9;?]*[A-Za-z]/g;
+
 export const MAX_CHECK_OUTPUT = 64 * 1024;
 
 export function runCheckProcess(check: CheckDefinition, workspaceRoot: string, signal: AbortSignal): Promise<CheckRun> {
@@ -34,7 +36,9 @@ export function runCheckProcess(check: CheckDefinition, workspaceRoot: string, s
       settled = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
-      resolve({ ...run, output: truncated ? `${run.output}\n[output truncated at 64 KiB]` : run.output });
+      // Test runners color their output even when asked not to; the panel shows plain text.
+      const plain = run.output.replace(ANSI_ESCAPE, "");
+      resolve({ ...run, output: truncated ? `${plain}\n[output truncated at 64 KiB]` : plain });
     };
 
     // Windows needs a shell to launch npm.cmd and similar; the command still comes only from settings.
@@ -42,7 +46,7 @@ export function runCheckProcess(check: CheckDefinition, workspaceRoot: string, s
       cwd,
       shell: process.platform === "win32",
       detached: process.platform !== "win32",
-      env: { ...process.env, CI: "1", FORCE_COLOR: "0" },
+      env: { ...process.env, CI: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
     });
     const kill = () => {
       if (child.pid === undefined) return;

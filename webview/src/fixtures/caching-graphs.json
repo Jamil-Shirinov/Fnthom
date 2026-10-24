@@ -1,0 +1,354 @@
+{
+  "before": {
+    "nodes": [
+      {
+        "id": "src/upstream.ts#createMockUpstream",
+        "name": "createMockUpstream",
+        "kind": "function",
+        "path": "src/upstream.ts",
+        "startLine": 8,
+        "endLine": 24,
+        "exported": true,
+        "bodyHash": "sha256:ff99c9277cf2ba0c0f40e3bd54ff103e06f3be42e8f1aec0f6eb923c12c60874",
+        "purpose": "Stand-in for a slow, metered forecast provider. Counts calls so tests can see upstream traffic.",
+        "purposeSource": "comment",
+        "status": "unchanged"
+      },
+      {
+        "id": "src/app.ts#createApp",
+        "name": "createApp",
+        "kind": "function",
+        "path": "src/app.ts",
+        "startLine": 5,
+        "endLine": 25,
+        "exported": true,
+        "bodyHash": "sha256:03ddb37f285b879f4440abcb14a3d4fdc1ab4ccd69f10813f5e20f0bb7c3eff0",
+        "status": "unchanged",
+        "purpose": "Builds the Express app and registers the weather route.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "src/app.ts#GET /api/weather/:city",
+        "name": "GET /api/weather/:city",
+        "kind": "route",
+        "path": "src/app.ts",
+        "startLine": 8,
+        "endLine": 22,
+        "exported": false,
+        "bodyHash": "sha256:4a8501db93728bf2c1d546c7bb9d3ae63b69d17a3ea79ff642948af58dd9cb7b",
+        "status": "unchanged",
+        "purpose": "Validates the city name, gets a forecast from the provider and returns it in the WeatherResponse shape; provider failures become 502.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "src/server.ts#(module)",
+        "name": "server.ts",
+        "kind": "module",
+        "path": "src/server.ts",
+        "startLine": 1,
+        "endLine": 8,
+        "exported": false,
+        "bodyHash": "sha256:6270bbc611f3f847c04f8667b18cfed191fca9b9701375a6a52b85c39edf1a6b",
+        "status": "unchanged",
+        "purpose": "Entry point: starts the API on PORT (3000 by default) with the mock forecast provider.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "test/weather.test.ts#(module)",
+        "name": "weather.test.ts",
+        "kind": "test",
+        "path": "test/weather.test.ts",
+        "startLine": 1,
+        "endLine": 32,
+        "exported": false,
+        "bodyHash": "sha256:6cc549468caeba04a0b7acf673079ee31823cad2a166d8492d548898c7cebec9",
+        "status": "unchanged",
+        "purpose": "Baseline endpoint tests: response schema, input validation and provider failures.",
+        "purposeSource": "agent"
+      }
+    ],
+    "edges": [
+      {
+        "id": "src/app.ts#createApp->src/app.ts#GET /api/weather/:city",
+        "from": "src/app.ts#createApp",
+        "to": "src/app.ts#GET /api/weather/:city",
+        "kind": "registers"
+      },
+      {
+        "id": "src/app.ts#GET /api/weather/:city->src/upstream.ts#createMockUpstream",
+        "from": "src/app.ts#GET /api/weather/:city",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "dispatch"
+      },
+      {
+        "id": "src/server.ts#(module)->src/app.ts#createApp",
+        "from": "src/server.ts#(module)",
+        "to": "src/app.ts#createApp",
+        "kind": "call"
+      },
+      {
+        "id": "src/server.ts#(module)->src/upstream.ts#createMockUpstream",
+        "from": "src/server.ts#(module)",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "call"
+      },
+      {
+        "id": "test/weather.test.ts#(module)->src/app.ts#createApp",
+        "from": "test/weather.test.ts#(module)",
+        "to": "src/app.ts#createApp",
+        "kind": "call"
+      },
+      {
+        "id": "test/weather.test.ts#(module)->src/upstream.ts#createMockUpstream",
+        "from": "test/weather.test.ts#(module)",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "call"
+      }
+    ],
+    "skipped": [],
+    "builtAt": "2026-10-24T00:00:00.000Z"
+  },
+  "after": {
+    "nodes": [
+      {
+        "id": "src/cache.ts#createTtlCache",
+        "name": "createTtlCache",
+        "kind": "function",
+        "path": "src/cache.ts",
+        "startLine": 8,
+        "endLine": 29,
+        "exported": true,
+        "bodyHash": "sha256:b1cacbdcdd9eb8a28d8e2a9aaf712aeddd8fad1863e3f81a5b5ff4ab3c3074fb",
+        "purpose": "Keeps recent forecasts in memory and forgets each one ttlMs after it was stored.",
+        "purposeSource": "plan",
+        "status": "new"
+      },
+      {
+        "id": "src/cache.ts#cacheKey",
+        "name": "cacheKey",
+        "kind": "function",
+        "path": "src/cache.ts",
+        "startLine": 32,
+        "endLine": 34,
+        "exported": true,
+        "bodyHash": "sha256:5027dc1d7cdf2e17e3ee84d975478e77907f3f08362c9e82e7022b0886723682",
+        "purpose": "Turns a city name into its cache key, so \"Berkeley\", \"berkeley\" and \" Berkeley \" share one entry.",
+        "purposeSource": "plan",
+        "status": "new"
+      },
+      {
+        "id": "src/upstream.ts#createMockUpstream",
+        "name": "createMockUpstream",
+        "kind": "function",
+        "path": "src/upstream.ts",
+        "startLine": 8,
+        "endLine": 24,
+        "exported": true,
+        "bodyHash": "sha256:ff99c9277cf2ba0c0f40e3bd54ff103e06f3be42e8f1aec0f6eb923c12c60874",
+        "purpose": "Stand-in for a slow, metered forecast provider. Counts calls so tests can see upstream traffic.",
+        "purposeSource": "comment",
+        "status": "unchanged"
+      },
+      {
+        "id": "src/cachedUpstream.ts#withCache",
+        "name": "withCache",
+        "kind": "function",
+        "path": "src/cachedUpstream.ts",
+        "startLine": 5,
+        "endLine": 16,
+        "exported": true,
+        "bodyHash": "sha256:19653cad8774dde2b149591c1a86f5068e33701573de844f6d474816835291ea",
+        "purpose": "Wraps the forecast provider so repeated requests for a city are answered from the cache; only misses reach the real provider.",
+        "purposeSource": "plan",
+        "status": "new"
+      },
+      {
+        "id": "src/app.ts#createApp",
+        "name": "createApp",
+        "kind": "function",
+        "path": "src/app.ts",
+        "startLine": 7,
+        "endLine": 28,
+        "exported": true,
+        "bodyHash": "sha256:e6aad6db407a5dccfd5564602dd1861b0f38e65ddb9811016fa09536c4f29d0e",
+        "status": "changed",
+        "purpose": "Creates the Express app with a 60-second TTL cache, unless the caller passes its own cache.",
+        "purposeSource": "plan"
+      },
+      {
+        "id": "src/app.ts#GET /api/weather/:city",
+        "name": "GET /api/weather/:city",
+        "kind": "route",
+        "path": "src/app.ts",
+        "startLine": 11,
+        "endLine": 25,
+        "exported": false,
+        "bodyHash": "sha256:5bb0f68abeca7f65ae0ccc8dcd3fe4818b9651df57c46e7693f21031365cd40b",
+        "status": "changed",
+        "purpose": "Validates the city name, gets a forecast from the provider and returns it in the WeatherResponse shape; provider failures become 502.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "src/server.ts#(module)",
+        "name": "server.ts",
+        "kind": "module",
+        "path": "src/server.ts",
+        "startLine": 1,
+        "endLine": 8,
+        "exported": false,
+        "bodyHash": "sha256:6270bbc611f3f847c04f8667b18cfed191fca9b9701375a6a52b85c39edf1a6b",
+        "status": "unchanged",
+        "purpose": "Entry point: starts the API on PORT (3000 by default) with the mock forecast provider.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "test/weather.test.ts#(module)",
+        "name": "weather.test.ts",
+        "kind": "test",
+        "path": "test/weather.test.ts",
+        "startLine": 1,
+        "endLine": 32,
+        "exported": false,
+        "bodyHash": "sha256:6cc549468caeba04a0b7acf673079ee31823cad2a166d8492d548898c7cebec9",
+        "status": "unchanged",
+        "purpose": "Baseline endpoint tests: response schema, input validation and provider failures.",
+        "purposeSource": "agent"
+      },
+      {
+        "id": "test/cache.test.ts#(module)",
+        "name": "cache.test.ts",
+        "kind": "test",
+        "path": "test/cache.test.ts",
+        "startLine": 1,
+        "endLine": 40,
+        "exported": false,
+        "bodyHash": "sha256:eee86d3701da7b7640ac645d86b765cd3db6179852b2e45d9787b718d75715e7",
+        "status": "new",
+        "purpose": "Proves the cache works: one provider call for repeated requests, the same response schema on hits and misses, and the cache module's own rules.",
+        "purposeSource": "plan"
+      }
+    ],
+    "edges": [
+      {
+        "id": "src/cachedUpstream.ts#withCache->src/cache.ts#cacheKey",
+        "from": "src/cachedUpstream.ts#withCache",
+        "to": "src/cache.ts#cacheKey",
+        "kind": "call"
+      },
+      {
+        "id": "src/cachedUpstream.ts#withCache->src/cache.ts#createTtlCache",
+        "from": "src/cachedUpstream.ts#withCache",
+        "to": "src/cache.ts#createTtlCache",
+        "kind": "dispatch"
+      },
+      {
+        "id": "src/cachedUpstream.ts#withCache->src/upstream.ts#createMockUpstream",
+        "from": "src/cachedUpstream.ts#withCache",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "dispatch"
+      },
+      {
+        "id": "src/app.ts#createApp->src/cachedUpstream.ts#withCache",
+        "from": "src/app.ts#createApp",
+        "to": "src/cachedUpstream.ts#withCache",
+        "kind": "call"
+      },
+      {
+        "id": "src/app.ts#createApp->src/cache.ts#createTtlCache",
+        "from": "src/app.ts#createApp",
+        "to": "src/cache.ts#createTtlCache",
+        "kind": "call"
+      },
+      {
+        "id": "src/app.ts#createApp->src/app.ts#GET /api/weather/:city",
+        "from": "src/app.ts#createApp",
+        "to": "src/app.ts#GET /api/weather/:city",
+        "kind": "registers"
+      },
+      {
+        "id": "src/app.ts#GET /api/weather/:city->src/upstream.ts#createMockUpstream",
+        "from": "src/app.ts#GET /api/weather/:city",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "dispatch"
+      },
+      {
+        "id": "src/app.ts#GET /api/weather/:city->src/cachedUpstream.ts#withCache",
+        "from": "src/app.ts#GET /api/weather/:city",
+        "to": "src/cachedUpstream.ts#withCache",
+        "kind": "dispatch"
+      },
+      {
+        "id": "src/server.ts#(module)->src/app.ts#createApp",
+        "from": "src/server.ts#(module)",
+        "to": "src/app.ts#createApp",
+        "kind": "call"
+      },
+      {
+        "id": "src/server.ts#(module)->src/upstream.ts#createMockUpstream",
+        "from": "src/server.ts#(module)",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "call"
+      },
+      {
+        "id": "test/weather.test.ts#(module)->src/app.ts#createApp",
+        "from": "test/weather.test.ts#(module)",
+        "to": "src/app.ts#createApp",
+        "kind": "call"
+      },
+      {
+        "id": "test/weather.test.ts#(module)->src/upstream.ts#createMockUpstream",
+        "from": "test/weather.test.ts#(module)",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "call"
+      },
+      {
+        "id": "test/cache.test.ts#(module)->src/upstream.ts#createMockUpstream",
+        "from": "test/cache.test.ts#(module)",
+        "to": "src/upstream.ts#createMockUpstream",
+        "kind": "call"
+      },
+      {
+        "id": "test/cache.test.ts#(module)->src/app.ts#createApp",
+        "from": "test/cache.test.ts#(module)",
+        "to": "src/app.ts#createApp",
+        "kind": "call"
+      },
+      {
+        "id": "test/cache.test.ts#(module)->src/cache.ts#createTtlCache",
+        "from": "test/cache.test.ts#(module)",
+        "to": "src/cache.ts#createTtlCache",
+        "kind": "call"
+      },
+      {
+        "id": "test/cache.test.ts#(module)->src/cache.ts#cacheKey",
+        "from": "test/cache.test.ts#(module)",
+        "to": "src/cache.ts#cacheKey",
+        "kind": "call"
+      }
+    ],
+    "skipped": [],
+    "builtAt": "2026-10-24T00:00:00.000Z"
+  },
+  "applied": [
+    {
+      "path": "src/cache.ts",
+      "baseHash": null,
+      "appliedHash": "sha256:abba0373c0a29718edf8dff5e9773a2aae0cf0045181d023ccea59c7c9b69913"
+    },
+    {
+      "path": "src/cachedUpstream.ts",
+      "baseHash": null,
+      "appliedHash": "sha256:2caecae642bef76e2464ec2842a231113cf480fe9ff754145a5847154800eacf"
+    },
+    {
+      "path": "src/app.ts",
+      "baseHash": "sha256:b04cac01a2f1bc964c05324d1b6252ba6f7e60d0591edc5a35bd7109e5d46254",
+      "appliedHash": "sha256:dcd3acdcd19420d20bad1f2596c6c60af038f5bbe135ef46d099a6e5c9070b7e"
+    },
+    {
+      "path": "test/cache.test.ts",
+      "baseHash": null,
+      "appliedHash": "sha256:eee86d3701da7b7640ac645d86b765cd3db6179852b2e45d9787b718d75715e7"
+    }
+  ]
+}

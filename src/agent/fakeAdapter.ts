@@ -1,10 +1,19 @@
-// Deterministic stand-in for Factory Droid, driven by the caching fixture in demo/fixtures/.
-// Used for UI work and tests until the real adapter passes the proposal-only gate.
+// Deterministic stand-in for Factory Droid, driven by the scripted caching scenario in fakeScenario.ts.
+// Used for the demo and tests until the real adapter passes the proposal-only gate.
 
-import planFixture from "../../demo/fixtures/caching-plan.json";
-import proposalFixtures from "../../demo/fixtures/caching-proposals.json";
-import { FeaturePlan, StepProposal, parsePlan, type FileSnapshot } from "../shared/schema";
-import { AgentCancelledError, type AgentAdapter, type AgentCallOptions } from "./adapter";
+import type { FileChange, FileSnapshot, PlannedFunction, PlanningTurn } from "../shared/schema";
+import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
+import {
+  EXISTING_DESCRIPTIONS,
+  REWORK_NOTES,
+  STEP_KEYS,
+  SUMMARY,
+  choicesFrom,
+  filesFor,
+  proposalFor,
+  stepOf,
+  upcomingAfter,
+} from "./fakeScenario";
 
 export type FakeAdapterOptions = {
   /** Simulated latency per activity event, in ms. Tests use 0. */
@@ -19,55 +28,62 @@ export class FakeAgentAdapter implements AgentAdapter {
     this.delayMs = options.delayMs ?? 400;
   }
 
-  async inspectAndPlan(request: { intent: string; context: FileSnapshot[] }, options: AgentCallOptions): Promise<FeaturePlan> {
-    await this.activity(options, "status", "Reading project metadata and the weather endpoint");
-    await this.activity(options, "tool", "Read src/app.ts, src/upstream.ts, src/schema.ts");
-    await this.activity(options, "status", "Drafting the implementation map");
+  async planNext(
+    request: { intent: string; context: FileSnapshot[]; history: PlannedFunction[]; lastDecision: Decision | null },
+    options: AgentCallOptions,
+  ): Promise<PlanningTurn> {
+    if (!request.context.some((s) => s.path === "src/app.ts" && s.exists)) {
+      throw new Error("The fake agent only knows the weather demo. Open the demo/app folder, or connect a real agent.");
+    }
+    if (!request.lastDecision) {
+      await this.activity(options, "tool", "Read src/app.ts, src/upstream.ts, src/schema.ts, src/server.ts");
+    }
+    const rejected = request.lastDecision?.decision === "rejected";
+    await this.activity(options, "status", rejected ? "Reworking the remaining plan around your rejection" : "Planning the next function");
 
-    const parsed = parsePlan({ ...planFixture, intent: request.intent });
-    if (!parsed.ok) throw new Error(`Fixture plan is invalid: ${parsed.issues.map((i) => i.message).join("; ")}`);
-    return parsed.plan;
+    const choices = choicesFrom(request.history);
+    const accepted = new Set(request.history.filter((f) => f.status === "accepted").map((f) => stepOf(f.id)));
+    const index = STEP_KEYS.findIndex((step) => !accepted.has(step));
+    if (index === -1) return { summary: SUMMARY, next: null, upcoming: [] };
+
+    const step = STEP_KEYS[index]!;
+    const attempts = request.history.filter((f) => stepOf(f.id) === step).length;
+    let reworkNote: string | undefined;
+    if (rejected && request.lastDecision) {
+      const rejectedStep = stepOf(request.lastDecision.functionId);
+      if (rejectedStep) {
+        reworkNote = REWORK_NOTES[rejectedStep][choices[rejectedStep] === 1 ? 0 : 1];
+        if (attempts >= 2) reworkNote += " (The demo agent has two designs per function, so you are seeing the first one again.)";
+        if (request.lastDecision.reason) reworkNote += ` You said: "${request.lastDecision.reason}".`;
+      }
+    }
+    return {
+      summary: SUMMARY,
+      next: {
+        id: `fn-${step}-${attempts + 1}`,
+        ...proposalFor(step, choices),
+        ...(rejected && request.lastDecision ? { replacesId: request.lastDecision.functionId } : {}),
+      },
+      upcoming: upcomingAfter(index, choices),
+      ...(reworkNote ? { reworkNote } : {}),
+    };
   }
 
-  async proposeStep(
-    request: { plan: FeaturePlan; stepId: string; context: FileSnapshot[] },
+  async implement(
+    request: { intent: string; functions: PlannedFunction[]; context: FileSnapshot[] },
     options: AgentCallOptions,
-  ): Promise<StepProposal> {
-    const fixture = (proposalFixtures as Record<string, unknown>)[request.stepId];
-    if (!fixture) throw new Error(`No fixture proposal for step "${request.stepId}"`);
-    await this.activity(options, "status", `Proposing "${request.plan.steps.find((s) => s.id === request.stepId)?.title}"`);
-
-    const proposal = StepProposal.parse(fixture);
-    // A real agent proposes against the snapshots it was given; mirror that for update baselines.
-    const files = proposal.files.map((file) => {
-      if (file.kind !== "update") return file;
-      const snapshot = request.context.find((s) => s.path === file.path);
-      return snapshot ? { ...file, baseHash: snapshot.contentHash } : file;
-    });
-    return { ...proposal, planRevision: request.plan.revision, files };
+  ): Promise<FileChange[]> {
+    const accepted = request.functions.filter((f) => f.status === "accepted").length;
+    await this.activity(options, "status", `Writing code for ${accepted} accepted functions`);
+    return filesFor(choicesFrom(request.functions), request.context);
   }
 
-  async answerQuestion(
-    request: { plan: FeaturePlan; stepId: string | null; question: string },
+  async describe(
+    request: { nodes: { id: string; name: string; path: string; code: string }[] },
     options: AgentCallOptions,
-  ): Promise<string> {
-    await this.activity(options, "status", "Thinking about your question");
-    const step = request.plan.steps.find((s) => s.id === request.stepId);
-    return step
-      ? `This step ("${step.title}") is expected to: ${step.expectedBehavior} (Fake agent: canned answer.)`
-      : `The plan: ${request.plan.summary} (Fake agent: canned answer.)`;
-  }
-
-  async revisePlan(
-    request: { plan: FeaturePlan; instruction: string; appliedStepIds: string[] },
-    options: AgentCallOptions,
-  ): Promise<FeaturePlan> {
-    await this.activity(options, "status", "Revising the remaining steps");
-    return FeaturePlan.parse({
-      ...request.plan,
-      revision: request.plan.revision + 1,
-      assumptions: [...request.plan.assumptions, `Revision requested: ${request.instruction}`],
-    });
+  ): Promise<Record<string, string>> {
+    await this.activity(options, "status", "Describing existing functions");
+    return Object.fromEntries(request.nodes.flatMap((n) => (EXISTING_DESCRIPTIONS[n.id] ? [[n.id, EXISTING_DESCRIPTIONS[n.id]!]] : [])));
   }
 
   cancel(): void {

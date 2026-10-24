@@ -7,7 +7,7 @@ This documentation makes the hackathon idea usable by teammates and their coding
 | Document | Purpose |
 | --- | --- |
 | [Product](product.md) | Problem, interaction design, differentiation, examples, and pitch |
-| [Architecture](architecture.md) | System boundaries, state, conceptual steps, source grounding, and invariants |
+| [Architecture](architecture.md) | System boundaries, the planning loop, edit safety, and how the function graph is grounded in source |
 | [Stack](stack.md) | Working technology choices and deliberately deferred infrastructure |
 | [Application specification](implementation/application-spec.md) | MVP implementation contract, schemas, state machine, module boundaries, and acceptance criteria |
 | [Droid integration](integrations/factory-droid.md) | SDK capabilities, integration strategy, constraints, and first experiment |
@@ -30,6 +30,6 @@ These are suggested prompts, not standing authorization to implement anything.
 
 ## Status and scope
 
-This is a design handoff. At the time of writing, no extension implementation has been established by this conversation. The user asked for stack advice, asked whether Factory Droid SDK could be used, and then requested this documentation. Building or publishing the product was not part of that documentation request.
+The MVP is implemented with a scripted fake agent: planning one function at a time with Accept/Reject and rework, implementation, checks, the function graph with pop-ups and highlighted navigation, export, and VSIX packaging. The real Factory Droid adapter is next. The interaction model changed on Oct 24 at the user's direction; see [the decision record](decisions.md).
 
 The original concept supplied by the user is summarized in [product.md](product.md). Technical recommendations from the discussion are recorded separately. External product comparisons are positioning hypotheses rather than a current competitive audit.

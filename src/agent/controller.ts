@@ -1,29 +1,28 @@
 // Authoritative session state machine (application-spec.md, section 6).
 //
-// idle -> inspecting -> planReady -> proposing -> previewReady -> applying -> checking
-//   -> stepReady / needsAttention / complete
-//
-// One agent turn or mutation runs at a time. Every action carries the state revision the UI saw,
-// and results from superseded or cancelled operations are dropped.
+// idle -> planning -> reviewing --accept--> planning -> ... (agent says the plan is complete)
+//                     reviewing --reject--> reworking -> reviewing
+//      -> implementing -> checking -> done
+// Failures go to needsAttention with a retry. One agent turn or mutation runs at a time, every action carries
+// the state revision the UI saw, and results from superseded or cancelled operations are dropped.
 
-import { withDerivedInvariants } from "../shared/evidence";
 import type { ActivityEvent } from "../shared/messages";
 import {
-  StepProposal,
+  FileChangeSet,
+  PlanningTurn,
   emptyState,
-  readySteps,
   type ApplicationState,
   type CheckResult,
+  type CodeGraph,
   type FeaturePlan,
   type FileSnapshot,
   type Phase,
   type RecoverableError,
-  type SourceRef,
 } from "../shared/schema";
-import { contentHash } from "../workspace/hash";
-import { proposalPaths, stepContextPaths, validateProposal } from "../workspace/edits";
-import type { WorkspacePort } from "../workspace/port";
-import { AgentCancelledError, type AgentAdapter, type AgentCallOptions } from "./adapter";
+import { annotateGraph, buildCodeGraph } from "../workspace/codeGraph";
+import { validateChanges } from "../workspace/edits";
+import { MAX_SOURCE_BYTES, type WorkspacePort } from "../workspace/port";
+import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
 
 export type ControllerEvents = {
   onState: (state: ApplicationState) => void;
@@ -38,22 +37,29 @@ export class GuardError extends Error {
 }
 
 type Guard = { sessionId: string; expectedRevision: number };
+type Graph = Omit<CodeGraph, "builtAt">;
 
-const STABLE_PHASES: ReadonlySet<Phase> = new Set(["idle", "planReady", "stepReady", "needsAttention", "complete"]);
-const BUSY_PHASES: ReadonlySet<Phase> = new Set(["inspecting", "proposing", "applying", "checking", "revising"]);
+const BUSY_PHASES: ReadonlySet<Phase> = new Set(["planning", "reworking", "implementing", "checking"]);
+/** How much source the agent is shown while planning and implementing. */
+const MAX_CONTEXT_BYTES = 512 * 1024;
+const MAX_DESCRIBED_NODES = 60;
 
 export class SessionController {
   private state: ApplicationState;
   private abort: AbortController | null = null;
   private operationCounter = 0;
   private resultCounter = 0;
-  /** Bumped on every source change; check evidence is only current for the generation it ran against. */
-  private sourceGeneration = 0;
-  /** Exact baselines the current proposal was made against, for previews and the apply-time comparison. */
+  private intent = "";
+  private lastDecision: Decision | null = null;
+  /** What "Try again" does in needsAttention. */
+  private retryAction: (() => Promise<void>) | null = null;
+  /** File contents just before implementation, for "view changes" diffs. */
   private baselines = new Map<string, FileSnapshot>();
-  private applyingPaths = new Set<string>();
-  /** Last content hash the session saw per path, so its own writes are not mistaken for outside edits. */
-  private knownHashes = new Map<string, string>();
+  /** The graph just before implementation, so the result can mark new and changed functions. */
+  private baselineGraph: Graph | null = null;
+  /** Agent descriptions of functions, kept so graph rebuilds after edits do not ask again. */
+  private descriptions: Record<string, string> = {};
+  private writing = false;
 
   constructor(
     private readonly agent: AgentAdapter,
@@ -68,9 +74,8 @@ export class SessionController {
     return this.state;
   }
 
-  /** Baseline content shown on the left of a proposal's diff. Undefined when the path is not in the proposal. */
-  baselineFor(proposalId: string, path: string): FileSnapshot | undefined {
-    if (this.state.proposal?.id !== proposalId) return undefined;
+  /** Content of a file before this session implemented the feature; exists: false for files it created. */
+  baselineFor(path: string): FileSnapshot | undefined {
     return this.baselines.get(path);
   }
 
@@ -86,331 +91,290 @@ export class SessionController {
 
   async startFeature(intent: string, guard: Guard): Promise<void> {
     this.assertGuard(guard);
-    if (this.state.phase !== "idle" && this.state.phase !== "planReady") {
-      throw new GuardError(`Cannot start a feature while the session is ${this.state.phase}.`);
-    }
-    const previous = this.state;
-    await this.runAgentOperation(
-      { phase: "inspecting", plan: null, currentStepId: null, proposal: null, history: [], evidence: [], questions: [] },
-      (options) => this.agent.inspectAndPlan({ intent, context: [] }, options),
-      (plan) => ({ phase: "planReady", plan: this.derive(plan) }),
-      () => ({ phase: STABLE_PHASES.has(previous.phase) ? previous.phase : "idle", plan: previous.plan }),
-      "Try again, or narrow the request.",
-    );
+    this.requireIdle("start a feature");
+    this.intent = intent;
+    this.lastDecision = null;
+    this.baselines.clear();
+    this.baselineGraph = null;
+    this.update({ plan: null, applied: [], checks: [], graph: null });
+    await this.planTurn("planning");
+  }
+
+  async acceptFunction(functionId: string, guard: Guard): Promise<void> {
+    this.decide(functionId, guard, { functionId, decision: "accepted" });
+    await this.planTurn("planning");
+  }
+
+  async rejectFunction(functionId: string, reason: string | undefined, guard: Guard): Promise<void> {
+    this.decide(functionId, guard, { functionId, decision: "rejected", ...(reason ? { reason } : {}) });
+    await this.planTurn("reworking");
+  }
+
+  private decide(functionId: string, guard: Guard, decision: Decision) {
+    this.assertGuard(guard);
     const plan = this.state.plan;
-    if (plan) {
-      const paths = new Set(plan.concepts.flatMap((c) => [...c.intendedPaths, ...c.sourceRefs.map((r) => r.path)]));
-      this.remember(await this.workspace.snapshot([...paths]));
+    const proposal = plan?.functions.find((f) => f.status === "proposed");
+    if (this.state.phase !== "reviewing" || !plan || proposal?.id !== functionId) {
+      throw new GuardError("That proposal was already decided or replaced.");
     }
-  }
-
-  async reviseApproach(instruction: string, guard: Guard): Promise<void> {
-    this.assertGuard(guard);
-    const plan = this.requirePlan();
-    this.requireStable("revise the approach", ["previewReady"]);
-    const previous = this.state;
-    this.baselines.clear();
-    await this.runAgentOperation(
-      { phase: "revising", proposal: null },
-      (options) =>
-        this.agent.revisePlan({ plan, instruction, appliedStepIds: this.state.history.map((h) => h.stepId) }, options),
-      (revised) => ({ phase: "planReady", plan: this.derive(this.keepAppliedHistory(plan, revised)), currentStepId: null }),
-      () => ({ phase: previous.phase === "previewReady" ? "planReady" : previous.phase, currentStepId: null }),
-      "Try again with a different instruction.",
-    );
-  }
-
-  async askQuestion(question: string, guard: Guard): Promise<void> {
-    this.assertGuard(guard);
-    const plan = this.requirePlan();
-    if (this.state.operationId) throw new GuardError("Wait for the current operation to finish before asking.");
-    const id = `q-${this.state.questions.length + 1}`;
-    const stepId = this.state.currentStepId ?? undefined;
-    this.update({ questions: [...this.state.questions, { id, stepId, question, askedAt: new Date().toISOString() }] });
-
-    // Questions are read-only: the phase stays where it was.
-    await this.runAgentOperation(
-      {},
-      (options) => this.agent.answerQuestion({ plan, stepId: stepId ?? null, question }, options),
-      (answer) => ({ questions: this.state.questions.map((q) => (q.id === id ? { ...q, answer } : q)) }),
-      () => ({ questions: this.state.questions.filter((q) => q.id !== id) }),
-      "Ask again.",
-    );
-  }
-
-  // ---------------------------------------------------------------- proposals
-
-  async startStep(stepId: string, guard: Guard): Promise<void> {
-    this.assertGuard(guard);
-    this.requireStable("start a step");
-    await this.propose(stepId);
-  }
-
-  async regenerateProposal(stepId: string, guard: Guard): Promise<void> {
-    this.assertGuard(guard);
-    this.requireStable("regenerate the proposal", ["previewReady"]);
-    await this.propose(stepId);
-  }
-
-  private async propose(stepId: string): Promise<void> {
-    const plan = this.requirePlan();
-    const applied = new Set(this.state.history.map((h) => h.stepId));
-    if (!readySteps(plan, applied).some((s) => s.id === stepId)) {
-      throw new GuardError("That step is already applied or waits on earlier steps.");
-    }
-    const previousPhase = this.state.phase === "previewReady" ? "planReady" : this.state.phase;
-    this.baselines.clear();
-
-    await this.runAgentOperation(
-      { phase: "proposing", currentStepId: stepId, proposal: null },
-      async (options) => {
-        const context = await this.workspace.snapshot(stepContextPaths(plan, stepId));
-        let proposal = StepProposal.parse(await this.agent.proposeStep({ plan, stepId, context }, options));
-
-        // A proposal may touch a file nobody read yet: capture its baseline and regenerate once against it.
-        const unread = proposalPaths(proposal).filter((p) => !context.some((s) => s.path === p));
-        if (unread.length) {
-          context.push(...(await this.workspace.snapshot(unread)));
-          proposal = StepProposal.parse(await this.agent.proposeStep({ plan, stepId, context }, options));
-        }
-
-        this.remember(context);
-        const problems = validateProposal(proposal, plan, stepId, context);
-        if (problems.length) throw new Error(problems.map((p) => p.message).join(" "));
-        for (const snapshot of context) this.baselines.set(snapshot.path, snapshot);
-        return proposal;
+    this.lastDecision = decision;
+    this.update({
+      plan: {
+        ...plan,
+        functions: plan.functions.map((f) =>
+          f.id === functionId
+            ? { ...f, status: decision.decision, ...(decision.reason ? { rejectionReason: decision.reason } : {}) }
+            : f,
+        ),
       },
-      (proposal) => ({ phase: "previewReady", proposal }),
-      () => ({ phase: previousPhase, currentStepId: null }),
-      "Regenerate the proposal, or revise the approach.",
-    );
+    });
   }
 
-  // ---------------------------------------------------------------- applying and checking
-
-  async applyAndContinue(proposalId: string, guard: Guard): Promise<void> {
-    this.assertGuard(guard);
-    const plan = this.requirePlan();
-    const proposal = this.state.proposal;
-    if (this.state.phase !== "previewReady" || !proposal || proposal.id !== proposalId) {
-      throw new GuardError("This proposal was already applied or replaced.");
-    }
-
-    const paths = proposalPaths(proposal);
-    const operationId = this.nextOperationId();
-    this.update({ phase: "applying", operationId, error: null });
-
-    const dirty = await this.workspace.dirtyPaths(paths);
-    if (dirty.length) {
-      return this.attention(
-        { stage: "save", message: `Unsaved changes in ${dirty.join(", ")}.`, nextAction: "Save or revert those files, then regenerate the proposal." },
-        { proposal: null },
-      );
-    }
-
-    const current = await this.workspace.snapshot(paths);
-    this.remember(current);
-    const stale = validateProposal(proposal, plan, proposal.stepId, current).filter((p) => p.kind === "stale");
-    if (stale.length) {
-      return this.attention(
-        { stage: "stale-source", message: stale.map((p) => p.message).join(" "), nextAction: "Regenerate the proposal against the current code." },
-        { proposal: null },
-      );
-    }
-
-    this.applyingPaths = new Set(paths);
-    let outcomes;
+  private async planTurn(busyPhase: "planning" | "reworking"): Promise<void> {
+    const operationId = this.begin({ phase: busyPhase });
+    const intent = this.intent;
     try {
-      outcomes = await this.workspace.apply(proposal);
-    } finally {
-      this.applyingPaths.clear();
-    }
-    this.sourceGeneration += 1;
+      const context = await this.readContext();
+      const history = this.state.plan?.functions ?? [];
+      const raw = await this.agent.planNext({ intent, context, history, lastDecision: this.lastDecision }, this.callOptions(operationId));
+      if (this.superseded(operationId)) return;
 
-    for (const o of outcomes) if (o.appliedHash) this.knownHashes.set(o.path, o.appliedHash);
+      const parsed = PlanningTurn.safeParse(raw);
+      if (!parsed.success) throw new Error(`The agent's plan did not have the expected shape: ${issueText(parsed.error.issues)}`);
+      const turn = parsed.data;
+      if (turn.next && history.some((f) => f.id === turn.next!.id)) throw new Error(`The agent reused the proposal id "${turn.next.id}".`);
 
-    const failed = outcomes.filter((o) => !o.applied || !o.saved);
-    const appliedFiles = outcomes.filter((o) => o.applied);
-    if (failed.length) {
-      return this.attention(
+      const plan: FeaturePlan = {
+        intent,
+        summary: turn.summary,
+        functions: turn.next ? [...history, { ...turn.next, status: "proposed" }] : history,
+        upcoming: turn.next ? turn.upcoming : [],
+        reworkNote: turn.reworkNote ?? null,
+      };
+      if (!turn.next) {
+        this.update({ plan });
+        if (!plan.functions.some((f) => f.status === "accepted")) {
+          return this.attention(operationId, { stage: "planning", message: "The plan ended without any accepted functions.", nextAction: "Start over with a different request." }, null);
+        }
+        return this.implement(operationId);
+      }
+      this.update({ plan, phase: "reviewing", operationId: null });
+    } catch (err) {
+      if (this.superseded(operationId)) return;
+      const cancelled = err instanceof AgentCancelledError;
+      this.attention(
+        operationId,
         {
-          stage: failed.some((o) => !o.applied) ? "apply" : "save",
-          message: `Changed: ${appliedFiles.map((o) => o.path).join(", ") || "nothing"}. Failed: ${failed.map((o) => `${o.path} (${o.error ?? "not saved"})`).join(", ")}.`,
-          nextAction: "Inspect those files, then regenerate the proposal. Nothing will be re-applied automatically.",
+          stage: cancelled ? "planning" : "invalid-output",
+          message: cancelled ? "Planning was cancelled." : errorText(err),
+          nextAction: "Try again to continue planning from the last decision, or start over.",
         },
-        { proposal: null },
+        () => this.planTurn(busyPhase),
       );
     }
+  }
 
-    const record = {
-      stepId: proposal.stepId,
-      proposalId: proposal.id,
-      appliedAt: new Date().toISOString(),
-      files: outcomes.map((o) => {
-        const base = this.baselines.get(o.path);
-        return { path: o.path, baseHash: base?.exists ? base.contentHash : null, appliedHash: o.appliedHash ?? "" };
-      }),
-    };
-    this.baselines.clear();
-    const refreshed = await this.refreshReferences(plan, proposal.stepId, paths);
-    this.update({ history: [...this.state.history, record], proposal: null, plan: refreshed });
+  // ---------------------------------------------------------------- implementation
 
-    await this.runChecks(operationId, proposal.stepId, proposal.suggestedCheckIds);
+  private async implement(operationId: string): Promise<void> {
+    const plan = this.state.plan!;
+    this.update({ phase: "implementing", error: null });
+    const retry = () => this.implement(this.begin({ phase: "implementing" }));
+    try {
+      this.emitActivity(operationId, "status", "Reading the current code");
+      const context = await this.readContext();
+      this.baselineGraph = await this.graphOf();
+      const raw = await this.agent.implement({ intent: plan.intent, functions: plan.functions, context }, this.callOptions(operationId));
+      if (this.superseded(operationId)) return;
+
+      const parsed = FileChangeSet.safeParse(raw);
+      if (!parsed.success) throw new Error(`The generated changes did not have the expected shape: ${issueText(parsed.error.issues)}`);
+      const files = parsed.data;
+      const paths = files.map((f) => f.path);
+
+      const dirty = await this.workspace.dirtyPaths(paths);
+      if (dirty.length) {
+        return this.attention(
+          operationId,
+          { stage: "save", message: `Unsaved changes in ${dirty.join(", ")}.`, nextAction: "Save or revert those files, then try again." },
+          retry,
+        );
+      }
+      const current = await this.workspace.snapshot(paths);
+      const issues = validateChanges(files, current);
+      if (issues.length) {
+        const stale = issues.every((i) => i.kind === "stale");
+        return this.attention(
+          operationId,
+          {
+            stage: stale ? "stale-source" : "invalid-output",
+            message: issues.map((i) => i.message).join(" "),
+            nextAction: stale ? "The code changed while it was being generated. Try again to generate against the current code." : "Try again.",
+          },
+          retry,
+        );
+      }
+
+      this.baselines = new Map(current.map((s) => [s.path, s]));
+      this.emitActivity(operationId, "status", `Writing ${paths.join(", ")}`);
+      this.writing = true;
+      let outcomes;
+      try {
+        outcomes = await this.workspace.apply(files);
+      } finally {
+        this.writing = false;
+      }
+      const failed = outcomes.filter((o) => !o.applied || !o.saved);
+      const written = outcomes.filter((o) => o.applied);
+      this.update({
+        applied: written.map((o) => {
+          const base = this.baselines.get(o.path);
+          return { path: o.path, baseHash: base?.exists ? base.contentHash : null, appliedHash: o.appliedHash ?? "" };
+        }),
+      });
+      if (failed.length) {
+        // Never re-apply automatically after a partial write; the user decides what to keep.
+        return this.attention(
+          operationId,
+          {
+            stage: failed.some((o) => !o.applied) ? "apply" : "save",
+            message: `Written: ${written.map((o) => o.path).join(", ") || "nothing"}. Failed: ${failed.map((o) => `${o.path} (${o.error ?? "not saved"})`).join(", ")}.`,
+            nextAction: "Inspect those files. Undo the changes in the editor, then start over.",
+          },
+          null,
+        );
+      }
+
+      await this.runChecks(operationId);
+      if (this.superseded(operationId)) return;
+      await this.finishGraph(operationId);
+    } catch (err) {
+      if (this.superseded(operationId)) return;
+      const cancelled = err instanceof AgentCancelledError;
+      this.attention(
+        operationId,
+        {
+          stage: cancelled ? "planning" : "invalid-output",
+          message: cancelled ? "Implementation was cancelled before any file was written." : errorText(err),
+          nextAction: "Try again to generate the code for the accepted plan.",
+        },
+        retry,
+      );
+    }
+  }
+
+  private async runChecks(operationId: string): Promise<void> {
+    const checks = this.workspace.checkDefinitions();
+    if (checks.length === 0) return;
+    this.update({ phase: "checking" });
+    const signal = this.abort?.signal ?? new AbortController().signal;
+    const results: CheckResult[] = [];
+    for (const check of checks) {
+      if (this.superseded(operationId)) return;
+      this.emitActivity(operationId, "status", `Running ${check.label}`);
+      const startedAt = new Date().toISOString();
+      const run = await this.workspace.runCheck(check, signal);
+      this.resultCounter += 1;
+      results.push({
+        id: `r-${this.resultCounter}`,
+        checkId: check.id,
+        label: check.label,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        exitCode: run.exitCode,
+        output: run.output,
+        status: run.status,
+      });
+      if (run.status === "cancelled") break;
+    }
+    if (!this.superseded(operationId)) this.update({ checks: results });
   }
 
   async rerunChecks(guard: Guard): Promise<void> {
     this.assertGuard(guard);
-    this.requireStable("rerun checks");
-    const stepId = this.state.history.at(-1)?.stepId;
-    if (!stepId) throw new GuardError("No step has been applied yet.");
-    const operationId = this.nextOperationId();
-    this.update({ operationId, error: null });
-    await this.runChecks(operationId, stepId, []);
+    this.requireIdle("rerun checks");
+    const phase = this.state.phase;
+    const operationId = this.begin({});
+    await this.runChecks(operationId);
+    if (!this.superseded(operationId)) this.update({ phase, operationId: null });
   }
 
-  async continueAfterFailure(guard: Guard): Promise<void> {
+  // ---------------------------------------------------------------- graph
+
+  /** Builds the function graph for the current code without starting a feature. */
+  async showGraph(guard: Guard): Promise<void> {
     this.assertGuard(guard);
-    if (this.state.phase !== "needsAttention" || this.state.error?.stage !== "checks") {
-      throw new GuardError("There is no failed check to continue past.");
-    }
-    // Failed evidence stays recorded and visible; continuing does not clear it.
-    this.update({ error: null, phase: "stepReady" });
-    await this.advance();
-  }
-
-  private async runChecks(operationId: string, stepId: string, suggested: string[]) {
-    const all = this.workspace.checkDefinitions();
-    const chosen = suggested.length ? all.filter((c) => suggested.includes(c.id)) : all;
-    const checks = chosen.length ? chosen : all;
-    if (checks.length === 0) {
-      // Nothing configured: progress, but never claim verification.
-      this.update({ phase: "stepReady", operationId: null });
-      return this.advance();
-    }
-
-    this.update({ phase: "checking" });
-    this.abort = new AbortController();
-    const fingerprint = this.fingerprint();
-    const results: CheckResult[] = [];
+    this.requireIdle("build the graph");
+    const phase = this.state.phase;
+    const operationId = this.begin({});
     try {
-      for (const check of checks) {
-        if (this.state.operationId !== operationId) return;
-        this.emitActivity(operationId, "status", `Running ${check.label}`);
-        const startedAt = new Date().toISOString();
-        const run = await this.workspace.runCheck(check, this.abort.signal);
-        this.resultCounter += 1;
-        results.push({
-          id: `r-${this.resultCounter}`,
-          checkId: check.id,
-          stepId,
-          startedAt,
-          finishedAt: new Date().toISOString(),
-          exitCode: run.exitCode,
-          output: run.output,
-          status: run.status,
-          sourceFingerprint: fingerprint,
-        });
-        if (run.status === "cancelled") break;
+      this.emitActivity(operationId, "status", "Reading the code and tracing calls");
+      await this.finishGraph(operationId, phase === "done" ? "done" : phase === "needsAttention" ? "idle" : phase);
+    } catch (err) {
+      if (!this.superseded(operationId)) {
+        this.attention(operationId, { stage: "graph", message: errorText(err), nextAction: "Try again." }, () => this.showGraph(this.guard()));
       }
-    } finally {
-      this.abort = null;
     }
-    if (this.state.operationId !== operationId) return;
-
-    const evidence = [...this.state.evidence, ...results];
-    const plan = this.state.plan ? withDerivedInvariants(this.state.plan, all, evidence, this.fingerprint()) : null;
-    const bad = results.filter((r) => r.status !== "passed");
-    if (bad.length) {
-      this.update({
-        evidence,
-        plan,
-        phase: "needsAttention",
-        operationId: null,
-        error: {
-          stage: "checks",
-          message: bad.map((r) => `${r.checkId}: ${r.status}`).join(", "),
-          nextAction: "The applied code was kept. Rerun the checks, revise the approach, or continue with failed checks.",
-        },
-      });
-      return;
-    }
-    this.update({ evidence, plan, phase: "stepReady", operationId: null });
-    await this.advance();
   }
 
-  /** After a step: propose the next ready step, or finish. */
-  private async advance() {
-    const plan = this.requirePlan();
-    const applied = new Set(this.state.history.map((h) => h.stepId));
-    const next = readySteps(plan, applied)[0];
-    if (!next) {
-      const allApplied = plan.steps.every((s) => applied.has(s.id));
-      this.update({ phase: allApplied ? "complete" : "stepReady", currentStepId: null });
-      return;
-    }
-    await this.propose(next.id);
-  }
-
-  // ---------------------------------------------------------------- source changes
-
-  /**
-   * Called for every saved, created or deleted workspace file. Our own apply is ignored; anything else
-   * invalidates check evidence, marks changed references stale, and retires a proposal made against old content.
-   */
-  async noteSourceChanged(paths: string[]): Promise<void> {
-    const candidates = paths.filter((p) => !this.applyingPaths.has(p));
-    if (candidates.length === 0 || !this.state.plan) return;
-
-    // Content, not events, decides: a save that matches what the session wrote is not an outside edit.
-    const snapshots = (await this.workspace.snapshot(candidates)).filter((snap) => {
-      const hash = snap.exists ? snap.contentHash : "missing";
-      const changed = this.knownHashes.get(snap.path) !== hash;
-      this.knownHashes.set(snap.path, hash);
-      return changed;
+  /** Rebuilds the graph quietly after the user edits code, so links keep pointing at the right lines. */
+  async noteSourceChanged(): Promise<void> {
+    if (!this.state.graph || this.state.operationId || this.writing) return;
+    const graph = annotateGraph(await this.graphOf(), {
+      baseline: this.baselineGraph,
+      planned: this.state.plan?.functions,
+      descriptions: this.descriptions,
     });
-    const external = snapshots.map((s) => s.path);
-    if (external.length === 0 || !this.state.plan) return;
-    this.sourceGeneration += 1;
+    if (!this.state.operationId) this.update({ graph: { ...graph, builtAt: new Date().toISOString() } });
+  }
 
-    const plan: FeaturePlan = {
-      ...this.state.plan,
-      concepts: this.state.plan.concepts.map((c) => ({
-        ...c,
-        sourceRefs: c.sourceRefs.map((ref) => {
-          const snap = snapshots.find((s) => s.path === ref.path);
-          if (!snap) return ref;
-          if (!snap.exists) return { ...ref, status: "missing" as const };
-          return rangeHash(snap.content, ref) === ref.contentHash ? ref : { ...ref, status: "stale" as const };
-        }),
-      })),
-    };
-    const derived = this.derive(plan);
+  private async finishGraph(operationId: string, finalPhase: Phase = "done"): Promise<void> {
+    this.emitActivity(operationId, "status", "Building the function graph");
+    const files = await this.sourceSnapshots();
+    const raw = buildCodeGraph(files, { includeTests: true });
+    const context = { baseline: this.baselineGraph, planned: this.state.plan?.functions, descriptions: this.descriptions };
+    let graph = annotateGraph(raw, context);
 
-    const proposal = this.state.proposal;
-    const touchesProposal = proposal && proposalPaths(proposal).some((p) => external.includes(p));
-    if (touchesProposal && this.state.phase === "previewReady") {
-      this.baselines.clear();
-      this.update({
-        plan: derived,
-        proposal: null,
-        phase: "needsAttention",
-        error: {
-          stage: "stale-source",
-          message: `${external.filter((p) => proposalPaths(proposal).includes(p)).join(", ")} changed after the proposal was made.`,
-          nextAction: "Regenerate the proposal against the current code.",
-        },
-      });
-      return;
+    const missing = graph.nodes.filter((n) => !n.purpose).slice(0, MAX_DESCRIBED_NODES);
+    if (missing.length) {
+      try {
+        const byPath = new Map(files.map((f) => [f.path, f.content.split("\n")]));
+        const nodes = missing.map((n) => ({
+          id: n.id,
+          name: n.name,
+          path: n.path,
+          code: (byPath.get(n.path) ?? []).slice(n.startLine - 1, n.endLine).join("\n").slice(0, 4000),
+        }));
+        const described = await this.agent.describe({ nodes }, this.callOptions(operationId));
+        if (this.superseded(operationId)) return;
+        for (const [id, text] of Object.entries(described)) if (typeof text === "string" && text.trim()) this.descriptions[id] = text.trim();
+        graph = annotateGraph(raw, { ...context, descriptions: this.descriptions });
+      } catch (err) {
+        if (err instanceof AgentCancelledError) throw err;
+        // Descriptions are a nicety; the graph is still accurate without them.
+      }
     }
-    this.update({ plan: derived });
+    if (this.superseded(operationId)) return;
+    this.update({ graph: { ...graph, builtAt: new Date().toISOString() }, phase: finalPhase, operationId: null });
+  }
+
+  private async graphOf(): Promise<Graph> {
+    return buildCodeGraph(await this.sourceSnapshots(), { includeTests: true });
   }
 
   // ---------------------------------------------------------------- lifecycle
 
+  async retry(guard: Guard): Promise<void> {
+    this.assertGuard(guard);
+    if (this.state.phase !== "needsAttention" || !this.retryAction) throw new GuardError("There is nothing to try again.");
+    const action = this.retryAction;
+    this.retryAction = null;
+    await action();
+  }
+
   cancel(guard: { sessionId: string }) {
     this.assertGuard(guard);
-    if (!this.state.operationId) return;
-    if (this.state.phase === "applying") return; // reconciliation must finish first
+    if (!this.state.operationId || this.writing) return; // a write in progress must finish and be reported
     this.abort?.abort();
     this.agent.cancel();
   }
@@ -420,6 +384,9 @@ export class SessionController {
     this.abort?.abort();
     this.agent.cancel();
     this.baselines.clear();
+    this.baselineGraph = null;
+    this.retryAction = null;
+    this.lastDecision = null;
     const fresh = emptyState(this.state.sessionId, this.state.workspaceId);
     this.state = { ...fresh, stateRevision: this.state.stateRevision + 1 };
     this.events.onState(this.state);
@@ -427,104 +394,61 @@ export class SessionController {
 
   // ---------------------------------------------------------------- helpers
 
-  /**
-   * Runs one read-only agent call: enter `start`, then apply `done(result)` or roll back with `rollback()`.
-   * Late results from a superseded or cancelled operation are ignored.
-   */
-  private async runAgentOperation<T>(
-    start: Partial<ApplicationState>,
-    call: (options: AgentCallOptions) => Promise<T>,
-    done: (result: T) => Partial<ApplicationState>,
-    rollback: () => Partial<ApplicationState>,
-    nextAction: string,
-  ): Promise<void> {
-    const operationId = this.nextOperationId();
-    this.abort = new AbortController();
-    this.update({ ...start, operationId, error: null });
-    try {
-      const result = await call({
-        operationId,
-        signal: this.abort.signal,
-        onActivity: (event) => this.emitActivity(operationId, event.kind, event.message),
-      });
-      if (this.state.operationId !== operationId) return;
-      this.update({ ...done(result), operationId: null });
-    } catch (err) {
-      if (this.state.operationId !== operationId) return;
-      const cancelled = err instanceof AgentCancelledError;
-      this.update({
-        ...rollback(),
-        operationId: null,
-        error: cancelled ? null : { stage: "invalid-output", message: err instanceof Error ? err.message : String(err), nextAction },
-      });
-    } finally {
-      this.abort = null;
+  private async sourceSnapshots(): Promise<FileSnapshot[]> {
+    const paths = await this.workspace.listSourceFiles();
+    return (await this.workspace.snapshot(paths)).filter((s) => s.exists && s.content.length <= MAX_SOURCE_BYTES);
+  }
+
+  /** Source the agent reads, smallest files first until the budget is spent. */
+  private async readContext(): Promise<FileSnapshot[]> {
+    const files = await this.sourceSnapshots();
+    const picked: FileSnapshot[] = [];
+    let bytes = 0;
+    for (const file of [...files].sort((a, b) => a.content.length - b.content.length)) {
+      if (bytes + file.content.length > MAX_CONTEXT_BYTES) break;
+      bytes += file.content.length;
+      picked.push(file);
     }
+    return picked.sort((a, b) => a.path.localeCompare(b.path));
   }
 
-  private remember(snapshots: FileSnapshot[]) {
-    for (const snap of snapshots) this.knownHashes.set(snap.path, snap.exists ? snap.contentHash : "missing");
+  private requireIdle(action: string) {
+    if (this.state.operationId || BUSY_PHASES.has(this.state.phase)) throw new GuardError(`Cannot ${action} while the agent is working.`);
   }
 
-  private attention(error: RecoverableError, patch: Partial<ApplicationState> = {}) {
-    this.baselines.clear();
-    this.update({ ...patch, phase: "needsAttention", operationId: null, error });
+  private begin(patch: Partial<ApplicationState>): string {
+    this.operationCounter += 1;
+    const operationId = `op-${this.operationCounter}`;
+    this.abort = new AbortController();
+    this.retryAction = null;
+    this.update({ ...patch, operationId, error: null });
+    return operationId;
   }
 
-  private async refreshReferences(plan: FeaturePlan, stepId: string, changedPaths: string[]): Promise<FeaturePlan> {
-    const step = plan.steps.find((s) => s.id === stepId);
-    const refsByPath = new Map<string, SourceRef[]>();
-    for (const path of changedPaths) refsByPath.set(path, await this.workspace.referencesFor(path));
-
-    return this.derive({
-      ...plan,
-      concepts: plan.concepts.map((concept) => {
-        const inStep = step?.conceptIds.includes(concept.id) ?? false;
-        const ownPaths = new Set(concept.intendedPaths);
-        // Concepts in this step link to the files it changed that they own; other concepts keep their refs.
-        const kept = concept.sourceRefs.filter((r) => !changedPaths.includes(r.path) || !inStep);
-        const added = inStep ? changedPaths.filter((p) => ownPaths.has(p)).flatMap((p) => refsByPath.get(p) ?? []) : [];
-        // A reference in a changed file outside this step can no longer be trusted.
-        const checked = kept.map((r) => (changedPaths.includes(r.path) ? { ...r, status: "stale" as const } : r));
-        return { ...concept, sourceRefs: [...checked, ...added] };
-      }),
-    });
+  private callOptions(operationId: string): AgentCallOptions {
+    return {
+      operationId,
+      signal: this.abort?.signal ?? new AbortController().signal,
+      onActivity: (event) => this.emitActivity(operationId, event.kind, event.message),
+    };
   }
 
-  private derive(plan: FeaturePlan): FeaturePlan {
-    return withDerivedInvariants(plan, this.workspace.checkDefinitions(), this.state.evidence, this.fingerprint());
+  private superseded(operationId: string) {
+    return this.state.operationId !== operationId;
   }
 
-  /** Applied steps stay frozen: a revision may change only steps that have not been applied. */
-  private keepAppliedHistory(previous: FeaturePlan, revised: FeaturePlan): FeaturePlan {
-    const applied = new Set(this.state.history.map((h) => h.stepId));
-    const frozen = previous.steps.filter((s) => applied.has(s.id));
-    const future = revised.steps.filter((s) => !applied.has(s.id));
-    return { ...revised, steps: [...frozen, ...future] };
+  private attention(operationId: string, error: RecoverableError, retry: (() => Promise<void>) | null) {
+    if (this.superseded(operationId)) return;
+    this.retryAction = retry;
+    this.update({ phase: "needsAttention", operationId: null, error });
   }
 
-  private requirePlan(): FeaturePlan {
-    if (!this.state.plan) throw new GuardError("Start a feature first.");
-    return this.state.plan;
-  }
-
-  private requireStable(action: string, alsoAllowed: Phase[] = []) {
-    const phase = this.state.phase;
-    if (BUSY_PHASES.has(phase) || this.state.operationId) throw new GuardError(`Cannot ${action} while the session is busy.`);
-    if (!STABLE_PHASES.has(phase) && !alsoAllowed.includes(phase)) throw new GuardError(`Cannot ${action} right now (${phase}).`);
-  }
-
-  private fingerprint() {
-    return `gen-${this.sourceGeneration}`;
+  private guard(): Guard {
+    return { sessionId: this.state.sessionId, expectedRevision: this.state.stateRevision };
   }
 
   private emitActivity(operationId: string, kind: ActivityEvent["kind"], message: string) {
     if (this.state.operationId === operationId) this.events.onActivity({ operationId, kind, message, at: new Date().toISOString() });
-  }
-
-  private nextOperationId() {
-    this.operationCounter += 1;
-    return `op-${this.operationCounter}`;
   }
 
   private update(patch: Partial<ApplicationState>) {
@@ -533,7 +457,13 @@ export class SessionController {
   }
 }
 
-/** Hash of the referenced line range, matching how references are created. */
-export function rangeHash(content: string, ref: Pick<SourceRef, "startLine" | "endLine">): string {
-  return contentHash(content.split("\n").slice(ref.startLine - 1, ref.endLine).join("\n"));
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function issueText(issues: { path: (string | number)[]; message: string }[]): string {
+  return issues
+    .slice(0, 5)
+    .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+    .join("; ");
 }

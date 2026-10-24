@@ -1,56 +1,58 @@
 // Builds the feature reference from session state alone, with no model call (application-spec.md, section 11).
 
-import { conceptImplementationState, type ApplicationState } from "./schema";
+import type { ApplicationState } from "./schema";
 
-const mermaidId = (id: string) => id.replace(/[^A-Za-z0-9_]/g, "_");
-const mermaidText = (text: string) => text.replace(/"/g, "'").replace(/[\[\]{}|<>]/g, " ");
+const mermaidId = (id: string) => `n_${id.replace(/[^A-Za-z0-9_]/g, "_")}`;
+const mermaidText = (text: string) => text.replace(/"/g, "'").replace(/[[\]{}|<>]/g, " ");
 
 export function buildFeatureReference(state: ApplicationState): string {
-  const plan = state.plan;
-  if (!plan) return "# Feature reference\n\nNo plan has been created in this session.\n";
-
-  const applied = new Set(state.history.map((h) => h.stepId));
+  const { plan, graph } = state;
   const lines: string[] = [];
-  lines.push(`# ${plan.intent}`, "", plan.summary, "");
+  lines.push(`# ${plan?.intent ?? "Function graph"}`, "");
+  if (plan) lines.push(plan.summary, "");
 
-  lines.push("## Data flow", "", "```mermaid", "flowchart LR");
-  for (const c of plan.concepts) lines.push(`  ${mermaidId(c.id)}["${mermaidText(c.title)}"]`);
-  for (const e of plan.edges) {
-    const label = e.label ? `|"${mermaidText(e.label)}"|` : "";
-    lines.push(`  ${mermaidId(e.fromConceptId)} -->${label} ${mermaidId(e.toConceptId)}`);
-  }
-  lines.push("```", "");
-
-  lines.push("## Components", "");
-  for (const c of plan.concepts) {
-    const state_ = conceptImplementationState(c, plan, applied, null);
-    lines.push(`### ${c.title} (${state_})`, "", c.purpose, "");
-    lines.push(`- Inputs: ${c.inputs.join(", ") || "none"}`, `- Outputs: ${c.outputs.join(", ") || "none"}`);
-    if (c.sourceRefs.length === 0) lines.push(`- Source: not implemented (intended: ${c.intendedPaths.join(", ") || "none"})`);
-    for (const ref of c.sourceRefs) {
-      const where = `\`${ref.path}:${ref.startLine}-${ref.endLine}\`${ref.symbol ? ` (${ref.symbol})` : ""}`;
-      lines.push(`- Source: ${where}${ref.status === "resolved" ? "" : `, **${ref.status}**: the code changed after it was linked`}`);
+  if (plan) {
+    lines.push("## Planned functions", "");
+    const accepted = plan.functions.filter((f) => f.status === "accepted");
+    accepted.forEach((f, i) => {
+      lines.push(`${i + 1}. **${f.name}** in \`${f.path}\` (${f.change === "new" ? "new" : "changed"}): ${f.purpose}`);
+      for (const d of f.details) lines.push(`   - ${d}`);
+    });
+    const rejected = plan.functions.filter((f) => f.status === "rejected");
+    if (rejected.length) {
+      lines.push("", "### Rejected designs", "");
+      for (const f of rejected) lines.push(`- **${f.name}**: ${f.purpose}${f.rejectionReason ? ` Reason: ${f.rejectionReason}` : ""}`);
     }
-    for (const inv of c.invariants) lines.push(`- Claim (${inv.status}): ${inv.claim}`);
     lines.push("");
   }
 
-  lines.push("## Steps", "");
-  plan.steps.forEach((step, i) => {
-    const record = state.history.find((h) => h.stepId === step.id);
-    const status = record ? `applied ${record.appliedAt}` : "not applied";
-    lines.push(`${i + 1}. **${step.title}** (${status}): ${step.expectedBehavior}`);
-  });
-  lines.push("");
+  if (graph) {
+    const nodes = graph.nodes.filter((n) => n.kind !== "test");
+    const shown = new Set(nodes.map((n) => n.id));
+    lines.push("## How the functions connect", "", "```mermaid", "flowchart LR");
+    for (const n of nodes) lines.push(`  ${mermaidId(n.id)}["${mermaidText(n.name)}${n.status === "unchanged" ? "" : ` (${n.status})`}"]`);
+    for (const e of graph.edges) {
+      if (!shown.has(e.from) || !shown.has(e.to)) continue;
+      lines.push(`  ${mermaidId(e.from)} ${e.kind === "call" ? "-->" : "-.->"} ${mermaidId(e.to)}`);
+    }
+    lines.push("```", "", "Dashed arrows are calls through an interface or a route registration.", "");
+
+    lines.push("## Functions", "");
+    for (const n of nodes) {
+      lines.push(`- **${n.name}** \`${n.path}:${n.startLine}-${n.endLine}\`${n.status === "unchanged" ? "" : ` (${n.status})`}: ${n.purpose ?? "No description."}`);
+    }
+    lines.push("");
+  }
+
+  if (state.applied.length) {
+    lines.push("## Files changed", "");
+    for (const f of state.applied) lines.push(`- \`${f.path}\` (${f.baseHash ? "updated" : "created"})`);
+    lines.push("");
+  }
 
   lines.push("## Checks", "");
-  if (state.evidence.length === 0) lines.push("No checks have run.");
-  for (const e of state.evidence) lines.push(`- \`${e.checkId}\` after step \`${e.stepId}\`: ${e.status}${e.exitCode !== undefined ? ` (exit ${e.exitCode})` : ""}, ${e.finishedAt}`);
+  if (state.checks.length === 0) lines.push("No checks have run.");
+  for (const c of state.checks) lines.push(`- ${c.label}: ${c.status}${c.exitCode !== undefined ? ` (exit ${c.exitCode})` : ""}, ${c.finishedAt}`);
   lines.push("");
-
-  if (plan.assumptions.length) lines.push("## Assumptions", "", ...plan.assumptions.map((a) => `- ${a}`), "");
-
-  const open = plan.concepts.flatMap((c) => c.invariants.filter((i) => i.status !== "supported").map((i) => `- ${i.claim} (${i.status})`));
-  lines.push("## Unresolved claims", "", ...(open.length ? open : ["None. Every recorded claim is supported by a passing check on the current source."]), "");
   return lines.join("\n");
 }

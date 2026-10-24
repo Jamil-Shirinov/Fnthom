@@ -1,5 +1,5 @@
 **
-!dist/**
+!dist/extension.js
 !webview/dist/**
 !package.json
 !README.md

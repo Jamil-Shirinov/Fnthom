@@ -1,7 +1,10 @@
 # Focused verification
 
-Keep cross-module behavior and extension integration tests here. Start with proposal-only generation, stale-source rejection, exactly-once application, and conceptual-step transitions. Add tests as the corresponding implementation lands.
+Vitest runs everything here (`npm test`):
 
-UI-specific tests can live beside their components when useful. Tests for the demo application's feature belong with that app under `demo/app/` once selected.
+- `controller.test.ts`: the planning loop, rework after rejection, guards, cancellation, implementation on a copy of `demo/app` with its real tests, unsaved and stale files, partial writes, failed checks, and graph rebuilds.
+- `codeGraph.test.ts`: graph nodes and edges for the demo and for imports, aliases, classes and JSX; new/changed marking and purpose precedence.
+- `workspace.test.ts`: validation of generated changes and the check runner.
+- `fakeAdapter.test.ts`, `messages.test.ts` and `export.test.ts`: the scripted agent, the protocol, and the Markdown export.
 
-The packaged extension also needs a manual walkthrough covering source navigation, cancellation, revised approaches, failed checks, and Droid startup. Choose a test runner with the implementation tooling; this scaffold does not select one.
+`helpers/nodeWorkspace.ts` implements the workspace port over a plain directory. Editor behavior (tabs, highlights, diffs) still needs the manual walkthrough in `demo/walkthrough.md`.

@@ -1,23 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ActivityEvent } from "../../src/shared/messages";
 import type { ApplicationState, Phase } from "../../src/shared/schema";
-import { ArchitectureGraph } from "./components/ArchitectureGraph";
-import { StepPanel } from "./components/StepPanel";
+import { FunctionGraph } from "./components/FunctionGraph";
+import { PlanningView } from "./components/PlanningView";
+import { ResultPanel } from "./components/ResultPanel";
 import type { Bridge, UiActionInput } from "./vscode";
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Ready",
-  inspecting: "Reading the repository",
-  planReady: "Plan ready",
-  proposing: "Proposing a step",
-  previewReady: "Review the proposed step",
-  applying: "Applying",
+  planning: "Planning",
+  reviewing: "Your call: accept or reject this function",
+  reworking: "Reworking the plan",
+  implementing: "Writing the code",
   checking: "Running checks",
-  stepReady: "Step applied",
+  done: "Done",
   needsAttention: "Needs attention",
-  revising: "Revising the plan",
-  complete: "Feature complete",
 };
+
+const PLANNING_PHASES: ReadonlySet<Phase> = new Set(["planning", "reviewing", "reworking", "implementing", "checking"]);
 
 const DEFAULT_INTENT = "Add caching so repeated weather requests do not hit the upstream forecast provider";
 
@@ -26,14 +26,15 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [intent, setIntent] = useState(DEFAULT_INTENT);
-  const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showTests, setShowTests] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
 
   useEffect(() => {
     const unsubscribe = bridge.subscribe((message) => {
       switch (message.type) {
         case "stateSnapshot":
           setState(message.payload);
-          if (message.payload.phase === "inspecting") setError(null);
           break;
         case "activity":
           setActivity((events) => [...events.slice(-49), message.payload]);
@@ -47,8 +48,14 @@ export function App({ bridge }: { bridge: Bridge }) {
     return unsubscribe;
   }, [bridge]);
 
-  const appliedStepIds = useMemo(() => new Set(state?.history.map((h) => h.stepId) ?? []), [state]);
-  const selectedConcept = state?.plan?.concepts.find((c) => c.id === selectedConceptId) ?? null;
+  const send = useCallback(
+    (action: UiActionInput) => {
+      setError(null);
+      bridge.send(action);
+    },
+    [bridge],
+  );
+  const openNode = useCallback((nodeId: string) => send({ type: "openNode", payload: { nodeId } }), [send]);
 
   if (!state) return <div className="empty">Connecting to the extension{"…"}</div>;
   if (!state.workspaceId) {
@@ -61,12 +68,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
 
   const busy = state.operationId !== null;
-  const send = (action: UiActionInput) => {
-    setError(null);
-    bridge.send(action);
-  };
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
-  const latest = activity.filter((a) => a.operationId === state.operationId).at(-1);
+  const latest = activity.filter((a) => a.operationId === state.operationId).at(-1)?.message ?? null;
+  const planning = PLANNING_PHASES.has(state.phase) || (state.phase === "needsAttention" && !!state.plan && !state.graph);
+  const graphView = !!state.graph && !planning && !showPlan;
 
   return (
     <div className="app">
@@ -75,23 +80,21 @@ export function App({ bridge }: { bridge: Bridge }) {
           className="intent"
           onSubmit={(event) => {
             event.preventDefault();
-            setSelectedConceptId(null);
+            setSelectedId(null);
+            setShowPlan(false);
             setActivity([]);
-            send({ type: "startFeature", payload: { ...guard, intent, useSelection: false } });
+            send({ type: "startFeature", payload: { ...guard, intent } });
           }}
         >
-          <label htmlFor="intent">Feature request</label>
-          <textarea
-            id="intent"
-            rows={2}
-            value={intent}
-            onChange={(e) => setIntent(e.target.value)}
-            disabled={busy || state.history.length > 0}
-          />
+          <label htmlFor="intent">What should the agent build?</label>
+          <textarea id="intent" rows={2} value={intent} onChange={(e) => setIntent(e.target.value)} disabled={busy} />
           <div className="intent__actions">
-            {state.history.length === 0 && (
-              <button type="submit" className="primary" disabled={busy || !intent.trim()}>
-                {state.plan ? "Plan again" : "Show the plan"}
+            <button type="submit" className="primary" disabled={busy || !intent.trim()}>
+              {state.plan ? "Start over" : "Plan it"}
+            </button>
+            {!state.graph && !state.plan && (
+              <button type="button" disabled={busy} onClick={() => send({ type: "showGraph", payload: guard })}>
+                Show the current function graph
               </button>
             )}
             {busy && (
@@ -99,52 +102,67 @@ export function App({ bridge }: { bridge: Bridge }) {
                 Cancel
               </button>
             )}
-            {state.plan && !busy && (
+            {(state.plan || state.graph) && !busy && (
               <button type="button" onClick={() => send({ type: "resetSession", payload: { sessionId: state.sessionId } })}>
-                Reset session
+                Reset
               </button>
             )}
           </div>
         </form>
         <div className="status" role="status" aria-live="polite">
           <strong>{PHASE_LABEL[state.phase]}</strong>
-          {busy && latest && <span className="status__activity"> {"·"} {latest.message}</span>}
-          {bridge.isPreview && <span className="status__preview">Browser preview with fixture data</span>}
+          {busy && latest && <span className="status__activity"> {"·"} {latest}</span>}
+          {bridge.isPreview && <span className="status__preview">Browser preview with the scripted demo agent</span>}
         </div>
-        {(error || (state.error && state.phase !== "needsAttention")) && (
+        {error && (
           <div className="error" role="alert">
-            {error ?? state.error?.message}
-            {state.error?.nextAction && <span> {state.error.nextAction}</span>}
+            {error}
+          </div>
+        )}
+        {state.phase === "needsAttention" && state.error && (
+          <div className="attention" role="alert">
+            <div>
+              <strong>{state.error.message}</strong> <span>{state.error.nextAction}</span>
+            </div>
+            {state.error.stage !== "apply" && (
+              <button type="button" className="primary" onClick={() => send({ type: "retry", payload: guard })}>
+                Try again
+              </button>
+            )}
           </div>
         )}
       </header>
 
-      {state.plan ? (
+      {graphView ? (
         <main className="workspace">
-          <ArchitectureGraph
-            plan={state.plan}
-            appliedStepIds={appliedStepIds}
-            currentStepId={state.currentStepId}
-            selectedConceptId={selectedConceptId}
-            onSelect={(id) => {
-              setSelectedConceptId(id);
-              bridge.send({ type: "selectConcept", payload: { conceptId: id } });
-            }}
-          />
-          <StepPanel
+          <FunctionGraph graph={state.graph!} showTests={showTests} selectedId={selectedId} onSelect={setSelectedId} onOpen={openNode} />
+          <ResultPanel
             state={state}
-            plan={state.plan}
-            selectedConcept={selectedConcept}
+            graph={state.graph!}
+            showTests={showTests}
+            onShowTests={setShowTests}
+            onShowPlan={() => setShowPlan(true)}
             send={send}
-            onBack={() => setSelectedConceptId(null)}
           />
+        </main>
+      ) : state.plan || planning ? (
+        <main className="scroll">
+          {showPlan && state.graph && (
+            <button type="button" className="link back" onClick={() => setShowPlan(false)}>
+              ← Back to the graph
+            </button>
+          )}
+          <PlanningView state={state} plan={state.plan} activity={latest} send={send} />
         </main>
       ) : (
         <div className="empty">
           {busy ? (
-            <p>Building the map before any code is written{"…"}</p>
+            <p>Reading the code{"…"}</p>
           ) : (
-            <p>Describe a feature. You will see its architecture map before any code changes.</p>
+            <>
+              <p>Describe a feature. The agent proposes it one function at a time; you accept or reject each one before any code is written.</p>
+              <p>When every function is planned, it writes the code and shows how your functions connect.</p>
+            </>
           )}
         </div>
       )}

@@ -12,6 +12,8 @@ const options = {
   target: "node18",
   external: ["vscode"],
   sourcemap: true,
+  // The bundle includes the TypeScript compiler for the function graph; minifying keeps the VSIX small.
+  minify: !watch,
   logLevel: "info",
 };
 
