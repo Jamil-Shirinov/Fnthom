@@ -162,6 +162,9 @@ export const GraphEdge = z.object({
 });
 export type GraphEdge = z.infer<typeof GraphEdge>;
 
+/** Arrow color per connection kind, shared by the panel's graph and the Markdown export. */
+export const EDGE_COLORS: Record<GraphEdge["kind"], string> = { call: "#3b8eea", dispatch: "#b267e6", registers: "#e8743b" };
+
 export const CodeGraph = z.object({
   nodes: z.array(GraphNode),
   edges: z.array(GraphEdge),

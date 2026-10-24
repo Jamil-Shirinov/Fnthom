@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import dagre from "@dagrejs/dagre";
 import {
   Background,
@@ -6,13 +6,14 @@ import {
   Handle,
   MarkerType,
   NodeToolbar,
+  Panel,
   Position,
   ReactFlow,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import type { CodeGraph, GraphNode } from "../../../src/shared/schema";
+import { EDGE_COLORS, type CodeGraph, type GraphEdge, type GraphNode } from "../../../src/shared/schema";
 
 const NODE_WIDTH = 230;
 const NODE_HEIGHT = 62;
@@ -26,6 +27,26 @@ const KIND_LABEL: Record<GraphNode["kind"], string> = {
   test: "tests",
 };
 const STATUS_LABEL: Record<GraphNode["status"], string | null> = { new: "New", changed: "Changed", unchanged: null };
+
+/**
+ * One color per kind of connection, mid-tones that read on light and dark themes and stay clear of the
+ * green/yellow used for new/changed nodes. Each kind also has its own dash pattern for color-blind readers.
+ */
+export const EDGE_STYLE: Record<GraphEdge["kind"], { color: string; dash?: string; label: string; meaning: string }> = {
+  call: { color: EDGE_COLORS.call, label: "Direct call", meaning: "The function calls the other one by name." },
+  dispatch: {
+    color: EDGE_COLORS.dispatch,
+    dash: "6 4",
+    label: "Call through an interface",
+    meaning: "The call goes through an interface or object type (like upstream.fetchForecast); any function that returns that type may be the one that runs.",
+  },
+  registers: {
+    color: EDGE_COLORS.registers,
+    dash: "2 3",
+    label: "Registers a route",
+    meaning: "The function sets up an HTTP route; the route's handler runs when a request arrives.",
+  },
+};
 
 /** One stable hue per file, so functions from the same file read as a group. */
 const FILE_HUES = [210, 32, 140, 280, 350, 180, 60, 250, 0, 100];
@@ -151,18 +172,22 @@ export function FunctionGraph(props: {
     () =>
       visible.edges.map((edge) => {
         const touched = selectedId && (edge.from === selectedId || edge.to === selectedId);
+        const style = EDGE_STYLE[edge.kind];
         return {
           id: edge.id,
           source: edge.from,
           target: edge.to,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          className: `call call--${edge.kind}${touched ? " call--active" : selectedId ? " call--dimmed" : ""}`,
+          markerEnd: { type: MarkerType.ArrowClosed, color: style.color, width: 18, height: 18 },
+          style: { stroke: style.color, strokeWidth: touched ? 3 : 1.75, ...(style.dash ? { strokeDasharray: style.dash } : {}) },
+          className: `call call--${edge.kind}${selectedId && !touched ? " call--dimmed" : ""}`,
           animated: !!touched,
-          ...(edge.kind === "registers" ? { label: "route" } : {}),
+          ...(edge.kind === "registers" ? { label: "route", labelStyle: { fill: style.color } } : {}),
         };
       }),
     [visible, selectedId],
   );
+  const kinds = useMemo(() => new Set(visible.edges.map((e) => e.kind)), [visible]);
+  const [legendOpen, setLegendOpen] = useState(true);
 
   return (
     <div className="graph" aria-label="Function graph">
@@ -183,7 +208,50 @@ export function FunctionGraph(props: {
       >
         <Background gap={24} size={1} />
         <Controls showInteractive={false} />
+        <Panel position="top-right">
+          {legendOpen ? (
+            <EdgeLegend present={kinds} onClose={() => setLegendOpen(false)} />
+          ) : (
+            <button type="button" className="legend-toggle" onClick={() => setLegendOpen(true)} aria-expanded={false}>
+              Arrow colors
+            </button>
+          )}
+        </Panel>
       </ReactFlow>
+    </div>
+  );
+}
+
+function EdgeLegend(props: { present: ReadonlySet<GraphEdge["kind"]>; onClose: () => void }) {
+  return (
+    <div className="edge-legend" role="dialog" aria-label="What the arrow colors mean">
+      <div className="edge-legend__head">
+        <strong>What the arrows mean</strong>
+        <button type="button" className="icon" aria-label="Close legend" onClick={props.onClose}>
+          ×
+        </button>
+      </div>
+      <ul>
+        {(Object.keys(EDGE_STYLE) as GraphEdge["kind"][]).map((kind) => {
+          const style = EDGE_STYLE[kind];
+          return (
+            <li key={kind} className={props.present.has(kind) ? "" : "edge-legend__absent"}>
+              <svg width="34" height="10" aria-hidden="true">
+                <line x1="1" y1="5" x2="26" y2="5" stroke={style.color} strokeWidth="2.5" strokeDasharray={style.dash} />
+                <path d="M26 1 L33 5 L26 9 Z" fill={style.color} />
+              </svg>
+              <div>
+                <div className="edge-legend__label" style={{ color: style.color }}>
+                  {style.label}
+                  {!props.present.has(kind) && <span className="hint"> (none in this graph)</span>}
+                </div>
+                <div className="hint">{style.meaning}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="hint">Arrows point from the caller to the function it uses. Click a box to highlight its arrows.</div>
     </div>
   );
 }

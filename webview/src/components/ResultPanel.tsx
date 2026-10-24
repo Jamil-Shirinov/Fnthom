@@ -1,6 +1,6 @@
 import type { ApplicationState, CodeGraph } from "../../../src/shared/schema";
 import type { UiActionInput } from "../vscode";
-import { fileHue } from "./FunctionGraph";
+import { EDGE_STYLE, fileHue } from "./FunctionGraph";
 
 type Send = (action: UiActionInput) => void;
 
@@ -87,16 +87,11 @@ export function ResultPanel(props: {
         <li>
           <span className="legend__box legend__box--changed" /> Changed by this feature
         </li>
-        <li>
-          <span className="legend__line" /> Calls
-        </li>
-        <li>
-          <span className="legend__line legend__line--dashed" /> Calls through an interface (any of these may run)
-        </li>
-        <li>
-          <span className="legend__line legend__line--dotted" /> Registers a route
-        </li>
       </ul>
+      <p className="hint">
+        Arrow colors: <span style={{ color: EDGE_STYLE.call.color }}>direct call</span>, <span style={{ color: EDGE_STYLE.dispatch.color }}>call through an interface</span>,{" "}
+        <span style={{ color: EDGE_STYLE.registers.color }}>route registration</span>. Open “Arrow colors” on the graph for details.
+      </p>
       <ul className="legend">
         {files.map((f) => (
           <li key={f}>

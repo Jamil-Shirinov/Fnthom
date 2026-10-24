@@ -1,6 +1,6 @@
 // Builds the feature reference from session state alone, with no model call (application-spec.md, section 11).
 
-import type { ApplicationState } from "./schema";
+import { EDGE_COLORS, type ApplicationState } from "./schema";
 
 const mermaidId = (id: string) => `n_${id.replace(/[^A-Za-z0-9_]/g, "_")}`;
 const mermaidText = (text: string) => text.replace(/"/g, "'").replace(/[[\]{}|<>]/g, " ");
@@ -31,11 +31,16 @@ export function buildFeatureReference(state: ApplicationState): string {
     const shown = new Set(nodes.map((n) => n.id));
     lines.push("## How the functions connect", "", "```mermaid", "flowchart LR");
     for (const n of nodes) lines.push(`  ${mermaidId(n.id)}["${mermaidText(n.name)}${n.status === "unchanged" ? "" : ` (${n.status})`}"]`);
-    for (const e of graph.edges) {
-      if (!shown.has(e.from) || !shown.has(e.to)) continue;
-      lines.push(`  ${mermaidId(e.from)} ${e.kind === "call" ? "-->" : "-.->"} ${mermaidId(e.to)}`);
-    }
-    lines.push("```", "", "Dashed arrows are calls through an interface or a route registration.", "");
+    const drawn = graph.edges.filter((e) => shown.has(e.from) && shown.has(e.to));
+    for (const e of drawn) lines.push(`  ${mermaidId(e.from)} ${e.kind === "call" ? "-->" : "-.->"} ${mermaidId(e.to)}`);
+    // Same arrow colors as the panel's graph.
+    drawn.forEach((e, i) => lines.push(`  linkStyle ${i} stroke:${EDGE_COLORS[e.kind]},stroke-width:2px`));
+    lines.push(
+      "```",
+      "",
+      "Blue arrows are direct calls, purple dashed arrows are calls through an interface, and orange dashed arrows are route registrations.",
+      "",
+    );
 
     lines.push("## Functions", "");
     for (const n of nodes) {
