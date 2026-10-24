@@ -9,7 +9,7 @@ import type { Bridge, UiActionInput } from "./vscode";
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Ready",
   planning: "Planning",
-  reviewing: "Your call: accept or reject this function",
+  reviewing: "Reviewing",
   reworking: "Reworking the plan",
   implementing: "Writing the code",
   checking: "Running checks",
@@ -104,7 +104,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             )}
             {(state.plan || state.graph) && !busy && (
               <button type="button" onClick={() => send({ type: "resetSession", payload: { sessionId: state.sessionId } })}>
-                Reset
+                Cancel
               </button>
             )}
           </div>

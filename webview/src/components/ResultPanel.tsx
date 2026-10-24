@@ -33,12 +33,7 @@ export function ResultPanel(props: {
             Review the decisions
           </button>
         </>
-      ) : (
-        <>
-          <h2>Function graph</h2>
-          <p>How the functions in this folder call each other. Click any box to read what it does and jump to its code.</p>
-        </>
-      )}
+      ) : null}
 
       {state.checks.length > 0 && (
         <>

@@ -149,6 +149,8 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
   margin: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
   font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
+.signature--new { color: var(--new); }
+.signature--change { color: var(--changed); }
 .details { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .relations { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 12px 0 0; }
 .relations dt { color: var(--muted); }

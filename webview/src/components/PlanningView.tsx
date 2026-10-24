@@ -29,12 +29,9 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
         <div className="planning__summary">
           <p>{plan.summary}</p>
           {total > 0 && (
-            <div className="progress" aria-label={`${acceptedCount} of about ${total} functions accepted`}>
+            <div className="progress" aria-label={`${acceptedCount} / ${total}`}>
               <div className="progress__bar" style={{ width: `${(acceptedCount / total) * 100}%` }} />
-              <span>
-                {acceptedCount} of {proposal || plan.upcoming.length ? "about " : ""}
-                {total} functions accepted
-              </span>
+              <span>{acceptedCount} / {total}</span>
             </div>
           )}
         </div>
@@ -49,7 +46,7 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
               </span>
               <code>{f.name}</code>
               <span className="decided__what">
-                {f.status === "accepted" ? f.purpose : `Rejected${f.rejectionReason ? `: “${f.rejectionReason}”` : ""}`}
+                {f.status === "accepted" ? f.purpose : `Reworked${f.rejectionReason ? `: “${f.rejectionReason}”` : ""}`}
               </span>
             </li>
           ))}
@@ -71,7 +68,7 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
 
       {plan && plan.upcoming.length > 0 && (
         <div className="upcoming">
-          <h3>Coming up · the agent reworks these if you reject something</h3>
+          <h3>Coming up</h3>
           <ol start={acceptedCount + 2}>
             {plan.upcoming.map((u) => (
               <li key={u.name}>
@@ -101,11 +98,11 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
       )}
       <div className="card__eyebrow">
         <span className="chip">{KIND_LABEL[proposal.kind]}</span>
-        <span className={`chip ${proposal.change === "new" ? "chip--new" : "chip--changed"}`}>{proposal.change === "new" ? "new" : "changes existing code"}</span>
+        {proposal.change === "change" && <span className="chip chip--changed">changes existing code</span>}
         <code className="card__path">{proposal.path}</code>
       </div>
       <h2 className="card__name">{proposal.name}</h2>
-      <pre className="signature">{proposal.signature}</pre>
+      <pre className={`signature signature--${proposal.change}`}>{proposal.signature}</pre>
       <p className="card__purpose">{proposal.purpose}</p>
 
       {proposal.details.length > 0 && (
@@ -156,7 +153,7 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
           <textarea id="reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Memory has to stay bounded" />
           <div className="actions">
             <button type="submit" className="danger">
-              Reject and rework
+              Rework
             </button>
             <button type="button" onClick={() => setRejecting(false)}>
               Back
@@ -168,8 +165,8 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
           <button type="button" className="primary" onClick={() => send({ type: "acceptFunction", payload: { ...guard, functionId: proposal.id } })}>
             ✓ Accept
           </button>
-          <button type="button" onClick={() => setRejecting(true)}>
-            ✕ Reject…
+          <button type="button" className="danger" onClick={() => setRejecting(true)}>
+            ✕ Rework…
           </button>
         </div>
       )}

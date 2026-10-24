@@ -1,6 +1,6 @@
 # Product interface components
 
-- `PlanningView.tsx`: the planning loop. Decided functions, the current proposal with Accept and Reject (with an optional reason), and the upcoming functions the agent reworks after a rejection.
+- `PlanningView.tsx`: the planning loop. Decided functions, the current proposal with Accept and Rework (with an optional reason), and the upcoming functions.
 - `FunctionGraph.tsx`: the React Flow graph of functions and calls, laid out left to right with dagre. Clicking a node shows its pop-up and asks the host to open its code in an editor tab.
 - `ResultPanel.tsx`: what the feature changed, check results, diffs, the graph legend, and export.
 
