@@ -21,7 +21,20 @@ Working stack: VS Code extension, TypeScript, React, React Flow, and Factory Dro
 └── tests/                 # Focused integration and behavior tests
 ```
 
-MVP step 1 is in place: root tooling, shared schemas and plan validation, the host/webview protocol, a fake agent driven by the caching fixture, the panel with the React Flow map, and the demo app. Step proposals, applying edits, checks, persistence and the real Droid adapter come next (see [application-spec.md](agents/implementation/application-spec.md), section 14). Directory README files describe ownership.
+The MVP loop works end to end with a fake agent: describe a feature, see the architecture map, review each step's explanation and diff, Apply & Continue, watch the demo's tests run, and export a Markdown feature reference. The real Factory Droid adapter and session persistence come next (see [application-spec.md](agents/implementation/application-spec.md), section 14). Directory README files describe ownership.
+
+## Try it in VS Code
+
+You need VS Code 1.90 or later and Node.js 20 or later.
+
+```bash
+npm install && npm run package          # writes human-centered-agent-0.0.1.vsix
+code --install-extension human-centered-agent-0.0.1.vsix
+cd demo/app && npm install              # the demo's tests are the check the extension runs
+code .
+```
+
+Then run **Human-Centered Agent: Open Panel** from the Command Palette and follow [the walkthrough](demo/walkthrough.md). The extension edits files in `demo/app`; run `npm run demo:reset` from the repository root to start over.
 
 ## Develop
 

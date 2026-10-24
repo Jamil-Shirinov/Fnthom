@@ -30,7 +30,8 @@ export function createBridge(): Bridge {
   };
 
   const inVsCode = typeof acquireVsCodeApi === "function";
-  const post = inVsCode ? acquireVsCodeApi().postMessage : createMockHost(deliver);
+  const api = inVsCode ? acquireVsCodeApi() : undefined;
+  const post = api ? (message: unknown) => api.postMessage(message) : createMockHost(deliver);
   if (inVsCode) window.addEventListener("message", (event) => deliver(event.data));
 
   return {

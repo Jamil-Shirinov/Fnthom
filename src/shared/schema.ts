@@ -332,7 +332,8 @@ export function conceptImplementationState(
   currentStepId: string | null,
 ): ConceptImplementationState {
   if (concept.sourceRefs.some((ref) => ref.status !== "resolved")) return "stale";
-  if (currentStepId) {
+  // An applied step stays current while its checks are reviewed; it is no longer active.
+  if (currentStepId && !appliedStepIds.has(currentStepId)) {
     const current = plan.steps.find((s) => s.id === currentStepId);
     if (current?.conceptIds.includes(concept.id)) return "active";
   }

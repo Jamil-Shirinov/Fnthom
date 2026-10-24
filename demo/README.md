@@ -15,4 +15,4 @@ npm start      # http://localhost:3000/api/weather/Berkeley
 
 To restore the baseline after a demo run, use `npm run demo:reset` from the repository root. It restores only `demo/app/` from the last commit and removes untracked files under `demo/app/src` and `demo/app/test`.
 
-Use synthetic data and keep credentials outside the repository. A step-by-step walkthrough goes in `demo/walkthrough.md` once the full loop works. See [the MVP demo story](../agents/mvp.md).
+Use synthetic data and keep credentials outside the repository. The step-by-step tester guide is [walkthrough.md](walkthrough.md). See [the MVP demo story](../agents/mvp.md).

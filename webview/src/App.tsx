@@ -3,7 +3,7 @@ import type { ActivityEvent } from "../../src/shared/messages";
 import type { ApplicationState, Phase } from "../../src/shared/schema";
 import { ArchitectureGraph } from "./components/ArchitectureGraph";
 import { StepPanel } from "./components/StepPanel";
-import type { Bridge } from "./vscode";
+import type { Bridge, UiActionInput } from "./vscode";
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Ready",
@@ -61,6 +61,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
 
   const busy = state.operationId !== null;
+  const send = (action: UiActionInput) => {
+    setError(null);
+    bridge.send(action);
+  };
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const latest = activity.filter((a) => a.operationId === state.operationId).at(-1);
 
@@ -73,22 +77,30 @@ export function App({ bridge }: { bridge: Bridge }) {
             event.preventDefault();
             setSelectedConceptId(null);
             setActivity([]);
-            bridge.send({ type: "startFeature", payload: { ...guard, intent, useSelection: false } });
+            send({ type: "startFeature", payload: { ...guard, intent, useSelection: false } });
           }}
         >
           <label htmlFor="intent">Feature request</label>
-          <textarea id="intent" rows={2} value={intent} onChange={(e) => setIntent(e.target.value)} disabled={busy} />
+          <textarea
+            id="intent"
+            rows={2}
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            disabled={busy || state.history.length > 0}
+          />
           <div className="intent__actions">
-            <button type="submit" className="primary" disabled={busy || !intent.trim()}>
-              {state.plan ? "Plan again" : "Show the plan"}
-            </button>
+            {state.history.length === 0 && (
+              <button type="submit" className="primary" disabled={busy || !intent.trim()}>
+                {state.plan ? "Plan again" : "Show the plan"}
+              </button>
+            )}
             {busy && (
-              <button type="button" onClick={() => bridge.send({ type: "cancel", payload: { sessionId: state.sessionId } })}>
+              <button type="button" onClick={() => send({ type: "cancel", payload: { sessionId: state.sessionId } })}>
                 Cancel
               </button>
             )}
             {state.plan && !busy && (
-              <button type="button" onClick={() => bridge.send({ type: "resetSession", payload: { sessionId: state.sessionId } })}>
+              <button type="button" onClick={() => send({ type: "resetSession", payload: { sessionId: state.sessionId } })}>
                 Reset session
               </button>
             )}
@@ -99,7 +111,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           {busy && latest && <span className="status__activity"> {"·"} {latest.message}</span>}
           {bridge.isPreview && <span className="status__preview">Browser preview with fixture data</span>}
         </div>
-        {(error || state.error) && (
+        {(error || (state.error && state.phase !== "needsAttention")) && (
           <div className="error" role="alert">
             {error ?? state.error?.message}
             {state.error?.nextAction && <span> {state.error.nextAction}</span>}
@@ -123,7 +135,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             state={state}
             plan={state.plan}
             selectedConcept={selectedConcept}
-            onOpenSource={(conceptId, refIndex) => bridge.send({ type: "openSource", payload: { conceptId, refIndex } })}
+            send={send}
             onBack={() => setSelectedConceptId(null)}
           />
         </main>

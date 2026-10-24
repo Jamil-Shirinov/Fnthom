@@ -96,3 +96,32 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .io dt { color: var(--muted); }
 .io dd { margin: 0; }
 .claims, .sources { padding-left: 0; list-style: none; display: grid; gap: 6px; }
+
+/* Step loop. */
+.callout { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }
+.callout--active { border-color: var(--accent); }
+.callout--ok { border-color: var(--ok); }
+.callout--bad { border-color: var(--bad); }
+.callout--bad p:first-of-type { color: var(--bad); }
+.callout p { margin: 6px 0; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.assumptions { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.files, .checks, .qa { padding-left: 0; list-style: none; display: grid; gap: 6px; margin: 0; }
+.files li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.files code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.checks summary { cursor: pointer; }
+.output {
+  margin: 6px 0 0; padding: 6px 8px; max-height: 200px; overflow: auto; white-space: pre-wrap;
+  font-family: var(--mono); font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 2px;
+}
+.inline-form { display: flex; gap: 6px; }
+.inline-form input {
+  flex: 1; min-width: 0; font: inherit; padding: 4px 8px;
+  background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); border-radius: 2px;
+}
+.qa { margin-top: 8px; }
+.qa__q { font-weight: 600; }
+.qa__a { color: var(--muted); }
+.revise { margin-top: 16px; }
+.revise summary { cursor: pointer; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }

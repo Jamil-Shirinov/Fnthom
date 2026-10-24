@@ -28,6 +28,8 @@
 | Fixture stack | User decision (Oct 24) | TypeScript + Express + Vitest, so the team uses one toolchain; a Zod response schema backs the "cached and uncached responses share a schema" invariant |
 | Build tooling | Working recommendation; implemented in MVP step 1 | esbuild bundles the host to `dist/`, Vite bundles the webview to `webview/dist/`, Vitest runs `tests/`; exact versions pinned in `package.json` |
 | Agent during development | Working recommendation; implemented in MVP step 1 | A deterministic fake adapter (`src/agent/fakeAdapter.ts`) serves the caching fixture until the real Droid adapter passes the proposal-only gate; the `humanCenteredAgent.useFakeAgent` setting defaults to true |
+| Step loop | Working recommendation; implemented in MVP step 2 | `SessionController` drives propose → preview → apply → checks → next step against a `WorkspacePort`; the VS Code port applies one `WorkspaceEdit` per step, saves only touched files, and verifies the written content. Outside edits retire a pending proposal and mark references and evidence stale |
+| Testing without VS Code | Working recommendation | VS Code cannot be downloaded in the cloud build sandbox, so the full loop is covered by Vitest on a copy of `demo/app` and by a stubbed-API smoke run of the bundled extension; real-editor testing happens on a teammate's machine from the `.vsix` |
 
 ## Questions to resolve before or during implementation
 
