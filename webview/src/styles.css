@@ -257,3 +257,32 @@ button.upcoming__toggle--open { transform: rotate(90deg); }
 .legend__box--planned { border-color: var(--muted); border-style: dashed; }
 .legend__file { width: 6px; height: 14px; border-radius: 2px; flex: none; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+
+/* Clusters: an outline behind each group of functions up close, a circle per group when zoomed out. */
+.react-flow__node-region { pointer-events: none; }
+.region {
+  width: 100%; height: 100%; border-radius: 14px;
+  border: 1px dashed hsl(var(--cluster-hue) 45% 55% / 0.55);
+  background: hsl(var(--cluster-hue) 50% 50% / 0.06);
+}
+.region__label {
+  position: absolute; top: 6px; left: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  color: hsl(var(--cluster-hue) 55% 65%);
+}
+body.vscode-light .region__label { color: hsl(var(--cluster-hue) 55% 35%); }
+.blob {
+  width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; cursor: zoom-in;
+  background: radial-gradient(circle at 35% 30%, hsl(var(--cluster-hue) 55% 50% / 0.38), hsl(var(--cluster-hue) 50% 40% / 0.2));
+  border: 2px solid hsl(var(--cluster-hue) 55% 58%);
+  box-shadow: 0 0 0 6px hsl(var(--cluster-hue) 55% 55% / 0.08);
+  transition: box-shadow 0.15s;
+}
+.blob:hover { box-shadow: 0 0 0 10px hsl(var(--cluster-hue) 55% 55% / 0.18); }
+.blob--selected { border-color: var(--accent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent); }
+.blob__text { display: grid; gap: 3px; justify-items: center; text-align: center; max-width: 150px; pointer-events: none; }
+.blob__text strong { font-size: 15px; line-height: 1.2; color: var(--fg); }
+.blob__text > span { font-size: 11px; color: var(--muted); }
+.blob__badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.blob__handle { top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); opacity: 0; }
+.meta-edge__label { fill: var(--fg); stroke: var(--bg); paint-order: stroke; font-weight: 600; pointer-events: none; }
+.lod-hint { padding: 4px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 12px; }

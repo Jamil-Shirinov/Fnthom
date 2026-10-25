@@ -1,5 +1,6 @@
 // Regenerates webview/src/fixtures/caching-graphs.json, the graphs the browser preview shows:
-// the demo app before the feature, and after the fake agent's default designs are implemented.
+// the demo app before the feature, and after the fake agent's default designs are implemented. Also writes
+// webview/src/fixtures/large-graph.json, a large made-up project for the clustered view.
 // Run with: npm run preview:fixture
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -8,6 +9,7 @@ import { EXISTING_DESCRIPTIONS, DEFAULT_CHOICES, STEP_KEYS, filesFor, proposalFo
 import type { FileSnapshot, PlannedFunction } from "../src/shared/schema";
 import { annotateGraph, buildCodeGraph } from "../src/workspace/codeGraph";
 import { contentHash } from "../src/workspace/hash";
+import { largeProject } from "./largeProject";
 
 const demo = path.resolve("demo/app");
 const files: FileSnapshot[] = ["src", "test"].flatMap((dir) =>
@@ -34,3 +36,8 @@ const out = {
 };
 writeFileSync("webview/src/fixtures/caching-graphs.json", `${JSON.stringify(out, null, 2)}\n`);
 console.log(`before: ${out.before.nodes.length} nodes, after: ${out.after.nodes.length} nodes`);
+
+// A made-up shop of about a hundred functions, for trying the clustered view: open the preview with ?large.
+const large = { ...annotateGraph(buildCodeGraph(largeProject()), {}), builtAt };
+writeFileSync("webview/src/fixtures/large-graph.json", `${JSON.stringify(large)}\n`);
+console.log(`large: ${large.nodes.length} nodes, ${large.edges.length} edges`);

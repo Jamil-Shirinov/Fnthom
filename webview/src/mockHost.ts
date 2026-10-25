@@ -11,6 +11,7 @@ import { projectPlan } from "../../src/workspace/plannedGraph";
 import { PROTOCOL_VERSION, type HostMessage } from "../../src/shared/messages";
 import { CodeGraph, emptyState, type AppliedFile, type ApplicationState, type FileSnapshot } from "../../src/shared/schema";
 import graphs from "./fixtures/caching-graphs.json";
+import largeGraph from "./fixtures/large-graph.json";
 import appSource from "../../demo/app/src/app.ts?raw";
 import upstreamSource from "../../demo/app/src/upstream.ts?raw";
 import weatherTests from "../../demo/app/test/weather.test.ts?raw";
@@ -45,7 +46,8 @@ export function createMockHost(deliver: (message: HostMessage) => void) {
     onActivity: (e: { kind: "status" | "tool" | "text"; message: string }) =>
       deliver({ protocolVersion: PROTOCOL_VERSION, type: "activity", payload: { operationId, ...e, at: new Date().toISOString() } }),
   });
-  const before = CodeGraph.parse(graphs.before);
+  // ?large shows a made-up project of about a hundred functions instead of the demo, to try the clustered view.
+  const before = CodeGraph.parse(new URLSearchParams(window.location.search).has("large") ? largeGraph : graphs.before);
   const plannedGraph = () => ({ ...projectPlan(before, state.plan?.functions ?? []), builtAt: new Date().toISOString() });
   const wait = () => new Promise((resolve) => setTimeout(resolve, DELAY_MS * 2));
 

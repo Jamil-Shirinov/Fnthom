@@ -22,10 +22,10 @@
         "name": "createApp",
         "kind": "function",
         "path": "src/app.ts",
-        "startLine": 5,
-        "endLine": 25,
+        "startLine": 7,
+        "endLine": 28,
         "exported": true,
-        "bodyHash": "sha256:03ddb37f285b879f4440abcb14a3d4fdc1ab4ccd69f10813f5e20f0bb7c3eff0",
+        "bodyHash": "sha256:e6aad6db407a5dccfd5564602dd1861b0f38e65ddb9811016fa09536c4f29d0e",
         "status": "unchanged",
         "purpose": "Builds the Express app and registers the weather route.",
         "purposeSource": "agent"
@@ -35,10 +35,10 @@
         "name": "GET /api/weather/:city",
         "kind": "route",
         "path": "src/app.ts",
-        "startLine": 8,
-        "endLine": 22,
+        "startLine": 11,
+        "endLine": 25,
         "exported": false,
-        "bodyHash": "sha256:4a8501db93728bf2c1d546c7bb9d3ae63b69d17a3ea79ff642948af58dd9cb7b",
+        "bodyHash": "sha256:5bb0f68abeca7f65ae0ccc8dcd3fe4818b9651df57c46e7693f21031365cd40b",
         "status": "unchanged",
         "purpose": "Validates the city name, gets a forecast from the provider and returns it in the WeatherResponse shape; provider failures become 502.",
         "purposeSource": "agent"
@@ -76,12 +76,6 @@
         "from": "src/app.ts#createApp",
         "to": "src/app.ts#GET /api/weather/:city",
         "kind": "registers"
-      },
-      {
-        "id": "src/app.ts#GET /api/weather/:city->src/upstream.ts#createMockUpstream",
-        "from": "src/app.ts#GET /api/weather/:city",
-        "to": "src/upstream.ts#createMockUpstream",
-        "kind": "dispatch"
       },
       {
         "id": "src/server.ts#(module)->src/app.ts#createApp",
@@ -183,7 +177,7 @@
         "endLine": 28,
         "exported": true,
         "bodyHash": "sha256:e6aad6db407a5dccfd5564602dd1861b0f38e65ddb9811016fa09536c4f29d0e",
-        "status": "changed",
+        "status": "unchanged",
         "purpose": "Creates the Express app with a 60-second TTL cache, unless the caller passes its own cache.",
         "purposeSource": "plan"
       },
@@ -196,7 +190,7 @@
         "endLine": 25,
         "exported": false,
         "bodyHash": "sha256:5bb0f68abeca7f65ae0ccc8dcd3fe4818b9651df57c46e7693f21031365cd40b",
-        "status": "changed",
+        "status": "unchanged",
         "purpose": "Validates the city name, gets a forecast from the provider and returns it in the WeatherResponse shape; provider failures become 502.",
         "purposeSource": "agent"
       },
@@ -354,7 +348,7 @@
     },
     {
       "path": "src/app.ts",
-      "baseHash": "sha256:b04cac01a2f1bc964c05324d1b6252ba6f7e60d0591edc5a35bd7109e5d46254",
+      "baseHash": "sha256:dcd3acdcd19420d20bad1f2596c6c60af038f5bbe135ef46d099a6e5c9070b7e",
       "appliedHash": "sha256:dcd3acdcd19420d20bad1f2596c6c60af038f5bbe135ef46d099a6e5c9070b7e"
     },
     {

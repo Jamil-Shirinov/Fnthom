@@ -20,10 +20,10 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 2. Install the extension, either from a prebuilt file:
 
    ```bash
-   code --install-extension path/to/human-centered-agent-0.1.16.vsix --force
+   code --install-extension path/to/human-centered-agent-0.2.0.vsix --force
    ```
 
-   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.1.16.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
+   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.2.0.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
 
 3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. Trust the workspace when VS Code asks.
 
@@ -43,6 +43,7 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 - **Leave a file unsaved.** Before your last acceptance, make an unsaved edit to `src/app.ts`. Nothing is written; the panel asks you to save or revert, then **Try again**.
 - **Edit code afterwards.** Add a few lines above a function and save. The graph rebuilds, and clicking the node still highlights the right lines.
 - **Break a test.** After implementing, change an expected value in `test/weather.test.ts`, save, and click **Rerun checks**. The failure and its output appear next to the graph; the code is kept.
+- **Zoom out.** Scroll out on the graph. Past a certain zoom, related functions shrink into named circles, with one arrow per pair of groups. Click a circle, or zoom back in, to see its functions. It matters most on large projects.
 - **Show test files.** Tick the box in the side panel to add the test files to the graph and see which functions they exercise.
 
 ## Start over
