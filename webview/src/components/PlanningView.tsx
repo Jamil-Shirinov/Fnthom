@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ApplicationState, FeaturePlan, GraphNode, PlannedFunction } from "../../../src/shared/schema";
 import { currentProposal } from "../../../src/shared/schema";
 import { findNode } from "../../../src/workspace/plannedGraph";
+import { tokenize } from "../highlight";
 import type { UiActionInput } from "../vscode";
 
 type Send = (action: UiActionInput) => void;
@@ -164,7 +165,9 @@ function ProposalCard(props: {
         <code className="card__path">{proposal.path}</code>
       </div>
       <h2 className="card__name">{proposal.name}</h2>
-      <pre className={`signature signature--${proposal.change}`}>{proposal.signature}</pre>
+      <pre className={`signature signature--${proposal.change}`}>
+        <CodeLine code={proposal.signature} />
+      </pre>
       <p className="card__purpose">{proposal.purpose}</p>
 
       {proposal.details.length > 0 && (
@@ -234,4 +237,21 @@ function ProposalCard(props: {
 
 function upcomingId(name: string): string {
   return `upcoming-${name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+/** Code colored like the editor; brackets cycle through three colors by nesting depth. */
+function CodeLine({ code }: { code: string }) {
+  return (
+    <>
+      {tokenize(code).map((t, i) =>
+        t.kind === "space" || t.kind === "punctuation" ? (
+          t.text
+        ) : (
+          <span key={i} className={t.kind === "bracket" ? `tok-bracket${(t.depth ?? 0) % 3}` : `tok-${t.kind}`}>
+            {t.text}
+          </span>
+        ),
+      )}
+    </>
+  );
 }

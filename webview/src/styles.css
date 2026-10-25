@@ -161,8 +161,28 @@ button.code-link:hover { text-decoration: underline; }
   margin: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
   font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.signature--new { color: var(--new); }
-.signature--change { color: var(--changed); }
+/* New signatures get a green edge and changes a yellow one; the code itself is colored like the editor (Dark+ / Light+). */
+.signature--new { border-left: 3px solid var(--new); }
+.signature--change { border-left: 3px solid var(--changed); }
+.signature { color: var(--fg); }
+.tok-function { color: #dcdcaa; }
+.tok-type { color: #4ec9b0; }
+.tok-variable, .tok-property { color: #9cdcfe; }
+.tok-keyword { color: #569cd6; }
+.tok-string { color: #ce9178; }
+.tok-number { color: #b5cea8; }
+.tok-bracket0 { color: var(--vscode-editorBracketHighlight-foreground1, #ffd700); }
+.tok-bracket1 { color: var(--vscode-editorBracketHighlight-foreground2, #da70d6); }
+.tok-bracket2 { color: var(--vscode-editorBracketHighlight-foreground3, #179fff); }
+body.vscode-light .tok-function { color: #795e26; }
+body.vscode-light .tok-type { color: #267f99; }
+body.vscode-light .tok-variable, body.vscode-light .tok-property { color: #001080; }
+body.vscode-light .tok-keyword { color: #0000ff; }
+body.vscode-light .tok-string { color: #a31515; }
+body.vscode-light .tok-number { color: #098658; }
+body.vscode-light .tok-bracket0 { color: var(--vscode-editorBracketHighlight-foreground1, #0431fa); }
+body.vscode-light .tok-bracket1 { color: var(--vscode-editorBracketHighlight-foreground2, #319331); }
+body.vscode-light .tok-bracket2 { color: var(--vscode-editorBracketHighlight-foreground3, #7b3814); }
 .details { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .relations { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 12px 0 0; }
 .relations dt { color: var(--muted); }
