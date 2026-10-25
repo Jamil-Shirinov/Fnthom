@@ -46,6 +46,7 @@ npm run typecheck
 npm run check:offline # full local reliability check: tests + build
 npm run dev:webview  # the UI in a browser with the scripted agent, no VS Code needed (add ?large for a big graph)
 npm run preview:fixture  # regenerate the graphs the browser preview shows
+npm run build:site   # a local demo website in site/ (open site/index.html, no server needed)
 npm run package      # builds, then writes an installable .vsix
 ```
 

@@ -108,6 +108,7 @@
     "check:offline": "npm test && npm run build",
     "package": "npm run build && vsce package --no-dependencies",
     "demo:reset": "git restore --source=HEAD --staged --worktree -- demo/app && git clean -fd -- demo/app/src demo/app/test",
+    "build:site": "node scripts/build-site.mjs",
     "preview:fixture": "esbuild scripts/preview-fixture.ts --bundle --platform=node --format=cjs --log-level=warning | node -"
   },
   "dependencies": {
