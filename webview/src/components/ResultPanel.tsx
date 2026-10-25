@@ -51,7 +51,6 @@ export function ResultPanel(props: {
               </li>
             ))}
           </ul>
-          {failed.length > 0 && <p className="hint">The code was kept. Fix it in the editor, then rerun.</p>}
           <button type="button" disabled={busy} onClick={() => send({ type: "rerunChecks", payload: guard })}>
             Rerun checks
           </button>
