@@ -1,7 +1,7 @@
 // What the controller needs from the editor and file system. The VS Code implementation lives in
 // vscodeWorkspace.ts; tests use a Node file-system implementation, so the controller stays testable.
 
-import type { CheckDefinition, CheckStatus, FileChange, FileSnapshot } from "../shared/schema";
+import type { CheckDefinition, CheckStatus, FileChange, FileSnapshot, PlannedFunction } from "../shared/schema";
 
 export type ApplyFileOutcome = { path: string; applied: boolean; saved: boolean; appliedHash?: string; error?: string };
 
@@ -14,6 +14,12 @@ export interface WorkspacePort {
   snapshot(paths: string[]): Promise<FileSnapshot[]>;
   /** Paths among these that have unsaved editor changes. */
   dirtyPaths(paths: string[]): Promise<string[]>;
+  /** Places a proposal preview in the editor without saving it. */
+  previewFunction(proposal: PlannedFunction): Promise<void>;
+  /** Saves the currently displayed proposal preview. */
+  saveFunctionPreview(functionId: string): Promise<void>;
+  /** Removes a proposal preview without saving it. */
+  discardFunctionPreview(functionId: string): Promise<void>;
   /** Writes the full contents and saves only the touched files. Never throws; reports per-file outcomes. */
   apply(files: FileChange[]): Promise<ApplyFileOutcome[]>;
   checkDefinitions(): CheckDefinition[];

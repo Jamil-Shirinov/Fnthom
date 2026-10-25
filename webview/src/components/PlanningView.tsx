@@ -11,7 +11,7 @@ const KIND_LABEL: Record<PlannedFunction["kind"], string> = { function: "functio
 
 const BUSY_TEXT: Partial<Record<ApplicationState["phase"], string>> = {
   planning: "Planning the next function…",
-  reworking: "Reworking the plan around your rejection…",
+  reworking: "Reworking the plan around your rejection",
   implementing: "Everything is planned. Writing the code…",
   checking: "Code written. Running the checks…",
 };
@@ -62,7 +62,9 @@ export function PlanningView(props: {
               <span className="decided__mark" aria-hidden="true">
                 {f.status === "accepted" ? "✓" : "✕"}
               </span>
-              <code>{f.name}</code>
+              <button type="button" className="link decided__name" onClick={() => send({ type: "openNode", payload: { nodeId: f.id } })}>
+                {f.name}
+              </button>
               <span className="decided__what">
                 {f.status === "accepted" ? f.purpose : `Reworked${f.rejectionReason ? `: “${f.rejectionReason}”` : ""}`}
               </span>
@@ -172,11 +174,12 @@ function ProposalCard(props: {
         {proposal.change === "change" && <span className="chip chip--changed">changes existing code</span>}
         <code className="card__path">{proposal.path}</code>
       </div>
-      <h2 className="card__name">{proposal.name}</h2>
+      <button type="button" className="link card__name" onClick={() => send({ type: "openNode", payload: { nodeId: proposal.id } })}>
+        {proposal.name}
+      </button>
       <pre className={`signature signature--${proposal.change}`}>
         <CodeLine code={proposal.signature} />
       </pre>
-      <p className="card__purpose">{proposal.purpose}</p>
 
       {proposal.details.length > 0 && (
         <>
@@ -321,6 +324,7 @@ function ProposalCard(props: {
           </button>
         </div>
       )}
+      <p className="hint">Generated code and tests are shown in the editor before you approve this function.</p>
     </article>
   );
 }

@@ -11,7 +11,7 @@ const BLOCKED = /(^|\/)(\.git|node_modules|dist|\.env[^/]*)(\/|$)/;
 export type ChangeIssue = { path?: string; kind: "invalid" | "stale"; message: string };
 
 /** Checks file changes against the current snapshots. Stale issues mean "generate again", not "broken". */
-export function validateChanges(files: FileChange[], snapshots: FileSnapshot[]): ChangeIssue[] {
+export function validateChanges(files: FileChange[], snapshots: FileSnapshot[], allowedNoopPaths: ReadonlySet<string> = new Set()): ChangeIssue[] {
   const issues: ChangeIssue[] = [];
   let bytes = 0;
   for (const file of files) {
@@ -31,7 +31,7 @@ export function validateChanges(files: FileChange[], snapshots: FileSnapshot[]):
       if (!snapshot.exists) issues.push({ path: file.path, kind: "stale", message: `${file.path} no longer exists.` });
       else if (snapshot.contentHash !== file.baseHash) {
         issues.push({ path: file.path, kind: "stale", message: `${file.path} changed since the code was generated.` });
-      } else if (snapshot.content === file.newContent) {
+      } else if (snapshot.content === file.newContent && !allowedNoopPaths.has(file.path)) {
         issues.push({ path: file.path, kind: "invalid", message: `The generated code does not change ${file.path}.` });
       }
     }

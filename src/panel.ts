@@ -161,10 +161,28 @@ export class AgentPanel implements vscode.Disposable {
 
   /** Opens a function or cited source range and highlights its lines. */
   private async openNode(nodeId: string) {
-    const node = this.controller.getState().graph?.nodes.find((n) => n.id === nodeId);
-    if (!node) throw new Error("That function is no longer in the graph.");
-    if (node.planned && node.status === "new") return; // planned, so there is no code to open yet
-    await this.openLocation(node.path, node.startLine, node.endLine);
+    const state = this.controller.getState();
+    const node = state.graph?.nodes.find((n) => n.id === nodeId);
+    const workspace = this.services.workspace;
+    if (!workspace) throw new Error("Open a workspace before opening a function.");
+    const proposal =
+      state.plan?.functions.find((f) => f.id === nodeId) ??
+      (node ? [...(state.plan?.functions ?? [])].reverse().find((f) => f.status === "accepted" && f.path === node.path && f.name === node.name) : undefined);
+    if (!node && !proposal) throw new Error("That function is no longer in the plan or graph.");
+
+    const path = node?.path ?? proposal!.path;
+    const name = node?.name ?? proposal!.name;
+    const previewDocument = proposal
+      ? vscode.workspace.textDocuments.find((candidate) => candidate.isDirty && candidate.getText().includes(name))
+      : undefined;
+    const doc = previewDocument ?? (await vscode.workspace.openTextDocument(workspace.uri(path)));
+    const lineIndex = node
+      ? Math.min(node.startLine - 1, doc.lineCount - 1)
+      : Math.max(0, doc.getText().split(/\r?\n/).findIndex((line) => line.includes(name)));
+    // Serialized lines are one-based and inclusive; editor positions are zero-based.
+    const last = node ? Math.min(node.endLine, doc.lineCount) - 1 : lineIndex;
+    const first = Math.min(lineIndex, last);
+    await this.showLocation(doc, first, last);
   }
 
   private async openLocation(path: string, startLine: number, endLine: number) {
@@ -173,9 +191,12 @@ export class AgentPanel implements vscode.Disposable {
     if (endLine < startLine) throw new Error("The source range is invalid.");
     const doc = await vscode.workspace.openTextDocument(workspace.uri(path));
     if (startLine > doc.lineCount) throw new Error(`The cited line ${startLine} no longer exists in ${path}.`);
-    // Serialized lines are one-based and inclusive; editor positions are zero-based.
-    const last = Math.min(endLine, doc.lineCount) - 1;
     const first = startLine - 1;
+    const last = Math.min(endLine, doc.lineCount) - 1;
+    await this.showLocation(doc, first, last);
+  }
+
+  private async showLocation(doc: vscode.TextDocument, first: number, last: number) {
     const range = new vscode.Range(first, 0, last, doc.lineAt(last).text.length);
     const editor = await vscode.window.showTextDocument(doc, {
       viewColumn: vscode.ViewColumn.One,

@@ -14,6 +14,7 @@ import {
   stepOf,
   upcomingAfter,
   evidenceFor,
+  previewFor,
 } from "./fakeScenario";
 
 export type FakeAdapterOptions = {
@@ -58,12 +59,14 @@ export class FakeAgentAdapter implements AgentAdapter {
         if (request.lastDecision.reason) reworkNote += ` You said: "${request.lastDecision.reason}".`;
       }
     }
+    const proposal = proposalFor(step, choices);
     return {
       summary: SUMMARY,
       next: {
         id: `fn-${step}-${attempts + 1}`,
-        ...proposalFor(step, choices),
+        ...proposal,
         evidence: evidenceFor(step),
+        preview: previewFor(step, choices, request.context),
         ...(rejected && request.lastDecision ? { replacesId: request.lastDecision.functionId } : {}),
       },
       upcoming: upcomingAfter(index, choices),
