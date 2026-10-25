@@ -119,6 +119,19 @@ describe("planning one function at a time", () => {
     expect(ctx.proposal().name).toBe("cacheKey");
   });
 
+  it("takes the pending proposal's preview out of the editor when the user starts over or resets", async () => {
+    const ctx = setup();
+    const discarded: string[] = [];
+    ctx.workspace.discardFunctionPreview = async (id: string) => void discarded.push(id);
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    const first = ctx.proposal().id;
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    expect(discarded).toEqual([first]);
+    ctx.controller.reset();
+    await Promise.resolve();
+    expect(discarded).toEqual([first, first]);
+  });
+
   it("reworks the remaining plan after a rejection and keeps the rejected design in the history", async () => {
     const ctx = setup();
     await ctx.controller.startFeature("Add caching", ctx.guard());

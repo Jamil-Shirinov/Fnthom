@@ -96,6 +96,7 @@ export class SessionController {
   async startFeature(intent: string, guard: Guard): Promise<void> {
     this.assertGuard(guard);
     this.requireIdle("start a feature");
+    await this.discardPendingPreview();
     this.intent = intent;
     this.lastDecision = null;
     this.baselines.clear();
@@ -444,6 +445,7 @@ export class SessionController {
   reset() {
     this.abort?.abort();
     this.agent.cancel();
+    void this.discardPendingPreview();
     this.baselines.clear();
     this.baselineGraph = null;
     this.retryAction = null;
@@ -454,6 +456,17 @@ export class SessionController {
   }
 
   // ---------------------------------------------------------------- helpers
+
+  /** Takes the preview of an undecided proposal back out of the editor, so starting over leaves no unsaved files. */
+  private async discardPendingPreview() {
+    const pending = this.state.plan?.functions.find((f) => f.status === "proposed");
+    if (!pending) return;
+    try {
+      await this.workspace.discardFunctionPreview(pending.id);
+    } catch {
+      // The preview is gone already or the user changed the file; either way there is nothing left to undo.
+    }
+  }
 
   private async sourceSnapshots(): Promise<FileSnapshot[]> {
     const paths = await this.workspace.listSourceFiles();

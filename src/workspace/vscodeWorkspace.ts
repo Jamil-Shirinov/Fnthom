@@ -76,7 +76,9 @@ export class VsCodeWorkspace implements WorkspacePort {
         continue;
       }
       const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString()) ?? (await vscode.workspace.openTextDocument(uri));
-      if (document.isDirty) throw new Error(`Save or revert ${file.path} before previewing a proposed function.`);
+      if (document.isDirty && !(await this.offerRevert(document, file.path))) {
+        throw new Error(`Save or revert ${file.path} before previewing a proposed function.`);
+      }
       const edit = new vscode.WorkspaceEdit();
       edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), file.content);
       if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not preview ${file.path}.`);
@@ -120,6 +122,25 @@ export class VsCodeWorkspace implements WorkspacePort {
   private async closePreviewDocument(document: vscode.TextDocument): Promise<void> {
     await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One, preview: false });
     await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+  }
+
+  /**
+   * A file the preview needs has unsaved changes, often left by an earlier preview that was never decided.
+   * Ask before throwing them away; the saved file on disk is kept either way.
+   */
+  private async offerRevert(document: vscode.TextDocument, path: string): Promise<boolean> {
+    const discard = "Discard unsaved changes";
+    const choice = await vscode.window.showWarningMessage(
+      `${path} has unsaved changes. Discard them so the agent can show its proposal there?`,
+      { modal: true },
+      discard,
+    );
+    if (choice !== discard) return false;
+    const saved = new TextDecoder().decode(await vscode.workspace.fs.readFile(document.uri));
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), saved);
+    if (!(await vscode.workspace.applyEdit(edit))) return false;
+    return document.save();
   }
 
   private async fileExists(uri: vscode.Uri): Promise<boolean> {
