@@ -2,7 +2,7 @@
   "name": "fnthom",
   "displayName": "Fnthom",
   "description": "Plan features with an AI agent one function at a time, then see how your functions connect and jump to their code.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "calhacks-13",
   "icon": "media/icon.png",
   "private": true,

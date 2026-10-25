@@ -271,4 +271,3 @@ body.vscode-light .region__label { color: hsl(var(--cluster-hue) 55% 35%); }
 .blob__badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 .blob__handle { top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); opacity: 0; }
 .meta-edge__label { fill: var(--fg); stroke: var(--bg); paint-order: stroke; font-weight: 600; pointer-events: none; }
-.lod-hint { padding: 4px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 12px; }

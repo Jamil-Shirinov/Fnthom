@@ -20,10 +20,10 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 2. Install the extension, either from a prebuilt file:
 
    ```bash
-   code --install-extension path/to/fnthom-0.3.1.vsix --force
+   code --install-extension path/to/fnthom-0.3.2.vsix --force
    ```
 
-   or by building it from the repository root with `npm install && npm run package` (this writes `fnthom-0.3.1.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
+   or by building it from the repository root with `npm install && npm run package` (this writes `fnthom-0.3.2.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
 
 3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. Trust the workspace when VS Code asks.
 
@@ -31,7 +31,7 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 
 1. Press Cmd/Ctrl+Shift+P and run **Fnthom: Open Panel**. The panel opens beside the editor.
 2. Optional: open the **Graph** tab to see the demo before any changes (createApp, the weather route, the mock provider, and the server entry point). The panel has two tabs, **Decisions** and **Graph**, and you can switch between them at any time.
-3. Keep the prefilled request and click **Plan it**. The first proposal appears: `createTtlCache`, with its purpose, how it works, its signature and file, and what calls it. The list below it shows the functions the agent expects to propose next.
+3. Type `Add caching so repeated weather requests do not hit the upstream forecast provider` and click **Plan it**. The first proposal appears: `createTtlCache`, with its purpose, how it works, its signature and file, and what calls it. The list below it shows the functions the agent expects to propose next.
 4. Click **✕ Rework…**, type a reason such as "memory has to stay bounded", and click **Rework**. The agent proposes `createLruCache` instead and explains what it changed. Look at the upcoming list: `createApp` now mentions an LRU cache and the tests add an eviction check.
 5. Click **✓ Accept** for the next functions. After each acceptance, open the **Graph** tab: the accepted functions appear as dashed boxes with faded arrows, because they are planned but not written yet. Try rejecting `withCache` too: the agent switches to caching inside the route, and the plan no longer has a `cachedUpstream.ts` file.
 6. After the last acceptance, the extension writes all the code at once, runs `npm test` in the demo, and switches to the Graph tab. The dashed boxes become real functions.

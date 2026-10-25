@@ -11,13 +11,12 @@ const REFRESH_PHASES: ReadonlySet<Phase> = new Set(["idle", "reviewing", "done"]
 
 type Tab = "decisions" | "graph";
 
-const DEFAULT_INTENT = "Add caching so repeated weather requests do not hit the upstream forecast provider";
 
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplicationState | null>(null);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [intent, setIntent] = useState(DEFAULT_INTENT);
+  const [intent, setIntent] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showTests, setShowTests] = useState(false);
   const [tab, setTab] = useState<Tab>("decisions");

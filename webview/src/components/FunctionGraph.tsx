@@ -7,7 +7,6 @@ import {
   Handle,
   MarkerType,
   NodeToolbar,
-  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -471,11 +470,6 @@ function GraphCanvas(props: GraphProps) {
         />
         <Background gap={24} size={1} />
         <Controls showInteractive={false} />
-        {showOverview && (
-          <Panel position="bottom-center" className="lod-hint">
-            Zoomed out: functions are grouped by what they do. Click a group or zoom in to see its functions.
-          </Panel>
-        )}
       </ReactFlow>
     </div>
   );
