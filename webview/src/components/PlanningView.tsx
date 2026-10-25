@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import type { ApplicationState, FeaturePlan, PlannedFunction } from "../../../src/shared/schema";
+import type { ApplicationState, FeaturePlan, GraphNode, PlannedFunction } from "../../../src/shared/schema";
 import { currentProposal } from "../../../src/shared/schema";
+import { findNode } from "../../../src/workspace/plannedGraph";
+import { tokenize } from "../highlight";
 import type { UiActionInput } from "../vscode";
 
 type Send = (action: UiActionInput) => void;
@@ -14,8 +16,24 @@ const BUSY_TEXT: Partial<Record<ApplicationState["phase"], string>> = {
   checking: "Code written. Running the checks…",
 };
 
-export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan | null; activity: string | null; send: Send }) {
-  const { state, plan, activity, send } = props;
+export function PlanningView(props: {
+  state: ApplicationState;
+  plan: FeaturePlan | null;
+  activity: string | null;
+  send: Send;
+  onShowInGraph: (nodeId: string) => void;
+}) {
+  const { state, plan, activity, send, onShowInGraph } = props;
+  const [flashed, setFlashed] = useState<string | null>(null);
+  const showUpcoming = (name: string) => {
+    document.getElementById(upcomingId(name))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashed(name);
+  };
+  useEffect(() => {
+    if (!flashed) return;
+    const timer = setTimeout(() => setFlashed(null), 1600);
+    return () => clearTimeout(timer);
+  }, [flashed]);
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const proposal = currentProposal(plan);
   const decided = plan?.functions.filter((f) => f.status !== "proposed") ?? [];
@@ -65,7 +83,18 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
         </div>
       ) : (
         proposal &&
-        state.phase === "reviewing" && <ProposalCard key={proposal.id} proposal={proposal} plan={plan!} guard={guard} send={send} />
+        state.phase === "reviewing" && (
+          <ProposalCard
+            key={proposal.id}
+            proposal={proposal}
+            plan={plan!}
+            nodes={state.graph?.nodes ?? []}
+            guard={guard}
+            send={send}
+            onShowInGraph={onShowInGraph}
+            onShowUpcoming={showUpcoming}
+          />
+        )
       )}
 
       {plan && plan.upcoming.length > 0 && (
@@ -73,7 +102,7 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
           <h3>Coming up</h3>
           <ol start={acceptedCount + 2}>
             {plan.upcoming.map((u) => (
-              <li key={u.name}>
+              <li key={u.name} id={upcomingId(u.name)} className={flashed === u.name ? "flash" : undefined}>
                 <code>{u.name}</code> <span className="hint">{u.summary}</span>
               </li>
             ))}
@@ -84,8 +113,42 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
   );
 }
 
-function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; guard: { sessionId: string; expectedRevision: number }; send: Send }) {
-  const { proposal, plan, guard, send } = props;
+function ProposalCard(props: {
+  proposal: PlannedFunction;
+  plan: FeaturePlan;
+  nodes: GraphNode[];
+  guard: { sessionId: string; expectedRevision: number };
+  send: Send;
+  onShowInGraph: (nodeId: string) => void;
+  onShowUpcoming: (name: string) => void;
+}) {
+  const { proposal, plan, nodes, guard, send, onShowInGraph, onShowUpcoming } = props;
+  const related = (name: string) => {
+    const node = findNode(nodes, name, `${proposal.path}#${proposal.name}`)?.node;
+    const upcoming = !node && plan.upcoming.some((u) => u.name === name);
+    if (node && !(node.planned && node.status === "new")) {
+      return (
+        <button key={name} type="button" className="code-link" title={`Open ${node.path}:${node.startLine}`} onClick={() => send({ type: "openNode", payload: { nodeId: node.id } })}>
+          {name}
+        </button>
+      );
+    }
+    if (node) {
+      return (
+        <button key={name} type="button" className="code-link" title="Accepted, not written yet. Show it in the graph." onClick={() => onShowInGraph(node.id)}>
+          {name}
+        </button>
+      );
+    }
+    if (upcoming) {
+      return (
+        <button key={name} type="button" className="code-link" title="Not proposed yet. Show it in Coming up." onClick={() => onShowUpcoming(name)}>
+          {name}
+        </button>
+      );
+    }
+    return <code key={name}>{name}</code>;
+  };
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const replaced = proposal.replacesId ? plan.functions.find((f) => f.id === proposal.replacesId) : undefined;
@@ -106,7 +169,9 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
       <button type="button" className="link card__name" onClick={() => send({ type: "openNode", payload: { nodeId: proposal.id } })}>
         {proposal.name}
       </button>
-      <pre className={`signature signature--${proposal.change}`}><SignatureCode signature={proposal.signature} /></pre>
+      <pre className={`signature signature--${proposal.change}`}>
+        <CodeLine code={proposal.signature} />
+      </pre>
 
       {proposal.details.length > 0 && (
         <>
@@ -125,9 +190,7 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
             <>
               <dt>Called by</dt>
               <dd>
-                {proposal.calledBy.map((n) => (
-                  <code key={n}>{n}</code>
-                ))}
+                {proposal.calledBy.map(related)}
               </dd>
             </>
           )}
@@ -135,9 +198,7 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
             <>
               <dt>Calls</dt>
               <dd>
-                {proposal.calls.map((n) => (
-                  <code key={n}>{n}</code>
-                ))}
+                {proposal.calls.map(related)}
               </dd>
             </>
           )}
@@ -178,44 +239,23 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
   );
 }
 
-function SignatureCode({ signature }: { signature: string }) {
-  const tokens: string[] = signature.match(/"[^"]*"|'[^']*'|`[^`]*`|[A-Za-z_$][\w$]*|\d+(?:\.\d+)?|=>|[{}()[\].,;:?<>:=/]|\s+|./g) ?? [];
-  const firstParen = tokens.findIndex((token) => token === "(");
-  const closeParen = firstParen < 0 ? -1 : tokens.lastIndexOf(")");
-  let parameterDepth = 0;
-  let seenReturnType = false;
+function upcomingId(name: string): string {
+  return `upcoming-${name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
 
+/** Code colored like the editor; brackets cycle through three colors by nesting depth. */
+function CodeLine({ code }: { code: string }) {
   return (
     <>
-      {tokens.map((token, index) => {
-        if (token === "(" && firstParen === index) parameterDepth = 1;
-        else if (parameterDepth && token === "(") parameterDepth++;
-        else if (parameterDepth && token === ")") parameterDepth--;
-        if (token === ":" && closeParen >= 0 && index > closeParen) seenReturnType = true;
-
-        const previous = previousSignificant(tokens, index);
-        const next = nextSignificant(tokens, index);
-        const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(token);
-        let className = "signature__text";
-
-        if (/^["'`]/.test(token)) className = "signature__string";
-        else if (["export", "function", "async", "const", "let", "class", "return"].includes(token)) className = "signature__keyword";
-        else if (index === firstParen - 1) className = "signature__function";
-        else if (isIdentifier && parameterDepth > 0 && (next === ":" || next === "?" || previous === "?")) className = "signature__parameter";
-        else if (isIdentifier && (seenReturnType || previous === ":" || previous === "<" || next === ">")) className = "signature__type";
-
-        return <span key={`${index}-${token}`} className={className}>{token}</span>;
-      })}
+      {tokenize(code).map((t, i) =>
+        t.kind === "space" || t.kind === "punctuation" ? (
+          t.text
+        ) : (
+          <span key={i} className={t.kind === "bracket" ? `tok-bracket${(t.depth ?? 0) % 3}` : `tok-${t.kind}`}>
+            {t.text}
+          </span>
+        ),
+      )}
     </>
   );
-}
-
-function previousSignificant(tokens: string[], index: number): string | undefined {
-  for (let i = index - 1; i >= 0; i -= 1) if (!/^\s+$/.test(tokens[i] ?? "")) return tokens[i];
-  return undefined;
-}
-
-function nextSignificant(tokens: string[], index: number): string | undefined {
-  for (let i = index + 1; i < tokens.length; i += 1) if (!/^\s+$/.test(tokens[i] ?? "")) return tokens[i];
-  return undefined;
 }

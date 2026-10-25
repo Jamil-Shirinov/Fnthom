@@ -2,7 +2,7 @@
   "name": "human-centered-agent",
   "displayName": "Human-Centered Coding Agent",
   "description": "Plan features with an AI agent one function at a time, then see how your functions connect and jump to their code.",
-  "version": "0.1.4",
+  "version": "0.1.11",
   "publisher": "calhacks-13",
   "private": true,
   "license": "MIT",

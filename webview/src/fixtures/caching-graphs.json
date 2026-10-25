@@ -12,6 +12,9 @@
         "bodyHash": "sha256:ff99c9277cf2ba0c0f40e3bd54ff103e06f3be42e8f1aec0f6eb923c12c60874",
         "purpose": "Stand-in for a slow, metered forecast provider. Counts calls so tests can see upstream traffic.",
         "purposeSource": "comment",
+        "returns": [
+          "WeatherUpstream"
+        ],
         "status": "unchanged"
       },
       {
@@ -121,6 +124,9 @@
         "bodyHash": "sha256:b1cacbdcdd9eb8a28d8e2a9aaf712aeddd8fad1863e3f81a5b5ff4ab3c3074fb",
         "purpose": "Keeps recent forecasts in memory and forgets each one ttlMs after it was stored.",
         "purposeSource": "plan",
+        "returns": [
+          "ForecastCache"
+        ],
         "status": "new"
       },
       {
@@ -147,6 +153,9 @@
         "bodyHash": "sha256:ff99c9277cf2ba0c0f40e3bd54ff103e06f3be42e8f1aec0f6eb923c12c60874",
         "purpose": "Stand-in for a slow, metered forecast provider. Counts calls so tests can see upstream traffic.",
         "purposeSource": "comment",
+        "returns": [
+          "WeatherUpstream"
+        ],
         "status": "unchanged"
       },
       {
@@ -160,6 +169,9 @@
         "bodyHash": "sha256:19653cad8774dde2b149591c1a86f5068e33701573de844f6d474816835291ea",
         "purpose": "Wraps the forecast provider so repeated requests for a city are answered from the cache; only misses reach the real provider.",
         "purposeSource": "plan",
+        "returns": [
+          "WeatherUpstream"
+        ],
         "status": "new"
       },
       {

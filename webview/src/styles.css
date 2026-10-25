@@ -48,9 +48,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
   background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); border-radius: 2px;
 }
 .intent__actions { display: flex; gap: 8px; }
-.status { color: var(--muted); }
-.status strong { color: var(--fg); }
-.status__preview { margin-left: 12px; padding: 1px 6px; border: 1px dashed var(--border); border-radius: 8px; font-size: 11px; }
 .error { color: var(--bad); }
 .attention {
   display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 12px;
@@ -126,7 +123,13 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .popup__where { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
 .popup__source { font-size: 11px; color: var(--muted); }
 .popup__rel { font-size: 12px; }
-.popup__rel span { color: var(--muted); margin-right: 4px; }
+.popup__rel > span:first-child { color: var(--muted); margin-right: 4px; }
+button.code-link {
+  background: none; padding: 0 5px; font-family: var(--mono); font-size: inherit; border-radius: 4px;
+  color: var(--vscode-textLink-foreground, #3794ff); border: 1px solid var(--border);
+}
+.popup__rel button.code-link { border: none; padding: 0; }
+button.code-link:hover { text-decoration: underline; }
 
 .chip, .badge { padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); white-space: nowrap; font-size: 11px; }
 .chip--new, .badge--new { color: var(--new); border-color: var(--new); }
@@ -159,13 +162,28 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
   margin: 0; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
   font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.signature--new { color: var(--new); }
-.signature--change { color: var(--changed); }
-.signature__keyword { color: var(--vscode-symbolIcon-keywordForeground, #569cd6); }
-.signature__function { color: var(--vscode-symbolIcon-functionForeground, #dcdcaa); }
-.signature__parameter { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
-.signature__type { color: var(--vscode-symbolIcon-typeParameterForeground, #4ec9b0); }
-.signature__string { color: var(--vscode-debugTokenExpression-string, #ce9178); }
+/* New signatures get a green edge and changes a yellow one; the code itself is colored like the editor (Dark+ / Light+). */
+.signature--new { border-left: 3px solid var(--new); }
+.signature--change { border-left: 3px solid var(--changed); }
+.signature { color: var(--fg); }
+.tok-function { color: #dcdcaa; }
+.tok-type { color: #4ec9b0; }
+.tok-variable, .tok-property { color: #9cdcfe; }
+.tok-keyword { color: #569cd6; }
+.tok-string { color: #ce9178; }
+.tok-number { color: #b5cea8; }
+.tok-bracket0 { color: var(--vscode-editorBracketHighlight-foreground1, #ffd700); }
+.tok-bracket1 { color: var(--vscode-editorBracketHighlight-foreground2, #da70d6); }
+.tok-bracket2 { color: var(--vscode-editorBracketHighlight-foreground3, #179fff); }
+body.vscode-light .tok-function { color: #795e26; }
+body.vscode-light .tok-type { color: #267f99; }
+body.vscode-light .tok-variable, body.vscode-light .tok-property { color: #001080; }
+body.vscode-light .tok-keyword { color: #0000ff; }
+body.vscode-light .tok-string { color: #a31515; }
+body.vscode-light .tok-number { color: #098658; }
+body.vscode-light .tok-bracket0 { color: var(--vscode-editorBracketHighlight-foreground1, #0431fa); }
+body.vscode-light .tok-bracket1 { color: var(--vscode-editorBracketHighlight-foreground2, #319331); }
+body.vscode-light .tok-bracket2 { color: var(--vscode-editorBracketHighlight-foreground3, #7b3814); }
 .details { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .relations { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 12px 0 0; }
 .relations dt { color: var(--muted); }
@@ -180,6 +198,8 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .upcoming ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .upcoming code { color: var(--fg); }
+.upcoming li { border-radius: 4px; transition: background-color 0.3s; }
+.upcoming li.flash { background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .spinner {
   width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent);
   animation: spin 0.8s linear infinite; flex: none;
