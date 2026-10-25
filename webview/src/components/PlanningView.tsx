@@ -170,7 +170,6 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
           </button>
         </div>
       )}
-      <p className="hint">No code is written until every function is planned.</p>
     </article>
   );
 }
