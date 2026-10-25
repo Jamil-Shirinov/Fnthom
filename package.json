@@ -104,11 +104,13 @@
     "build": "node scripts/build-extension.mjs && vite build --config webview/vite.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json --noEmit",
     "test": "vitest run",
+    "check:offline": "npm test && npm run build",
     "package": "npm run build && vsce package --no-dependencies",
     "demo:reset": "git restore --source=HEAD --staged --worktree -- demo/app && git clean -fd -- demo/app/src demo/app/test",
     "preview:fixture": "esbuild scripts/preview-fixture.ts --bundle --platform=node --format=cjs --log-level=warning | node -"
   },
   "dependencies": {
+    "@factory/droid-sdk": "^0.10.0",
     "typescript": "5.8.3",
     "zod": "3.25.76"
   },

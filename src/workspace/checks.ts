@@ -41,10 +41,11 @@ export function runCheckProcess(check: CheckDefinition, workspaceRoot: string, s
       resolve({ ...run, output: truncated ? `${plain}\n[output truncated at 64 KiB]` : plain });
     };
 
-    // Windows needs a shell to launch npm.cmd and similar; the command still comes only from settings.
+    // Direct executables already come from settings; using the shell here breaks quoting and path handling,
+    // especially when the executable is a full Node.js path on Windows.
     const child = spawn(check.executable, check.args, {
       cwd,
-      shell: process.platform === "win32",
+      shell: false,
       detached: process.platform !== "win32",
       env: { ...process.env, CI: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
     });

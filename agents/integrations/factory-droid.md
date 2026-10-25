@@ -70,4 +70,15 @@ Before building the full agent loop, prove that the extension host can:
 
 The graph, conceptual granularity, explanations, and evidence links remain application responsibilities. Account access, costs, model availability, and distribution/onboarding details remain to be confirmed.
 
+## While the key is pending
+
+The repo is already offline-ready for iteration while the team waits on Factory access:
+
+- keep the fake agent as the dependable fallback for local development
+- run `npm run check:offline` before any demo or handoff
+- verify that missing-key warnings point contributors to the command palette and `FACTORY_API_KEY`
+- keep the integration smoke test checklist ready for the first authenticated session
+
+The first live session should be a minimal, high-signal smoke check of the adapter contract, not a broad product expansion. Once the key arrives, the next work is to replace the fake backend with the real session and confirm the same planning and implementation contract still holds.
+
 Primary reference: [Factory Droid TypeScript SDK](https://docs.factory.com/sdk/typescript).

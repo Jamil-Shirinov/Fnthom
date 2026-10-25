@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import * as vscode from "vscode";
 import type { AgentAdapter } from "./agent/adapter";
 import { SessionController } from "./agent/controller";
+import { FactoryDroidAdapter } from "./agent/factoryDroidAdapter";
 import { FakeAgentAdapter } from "./agent/fakeAdapter";
 import { AgentPanel } from "./panel";
 import { buildFeatureReference } from "./shared/exportMarkdown";
@@ -16,7 +17,7 @@ const SECRET_KEY = "humanCenteredAgent.factoryApiKey";
 
 export async function activate(context: vscode.ExtensionContext) {
   const root = await pickWorkspaceRoot();
-  const agent = createAgent();
+  const agent = await createAgent(context);
   const workspace = root ? new VsCodeWorkspace(root) : undefined;
   const controller = new SessionController(
     agent,
@@ -96,12 +97,24 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
-function createAgent(): AgentAdapter {
-  const useFake = vscode.workspace.getConfiguration("humanCenteredAgent").get<boolean>("useFakeAgent", true);
-  if (!useFake) {
-    void vscode.window.showWarningMessage("The Factory Droid adapter is not wired yet; using the fake agent.");
+async function createAgent(context: vscode.ExtensionContext): Promise<AgentAdapter> {
+  const config = vscode.workspace.getConfiguration("humanCenteredAgent");
+  const useFake = config.get<boolean>("useFakeAgent", true);
+  const apiKey = (await context.secrets.get(SECRET_KEY)) ?? process.env.FACTORY_API_KEY?.trim() ?? "";
+
+  if (useFake) {
+    return new FakeAgentAdapter();
   }
-  return new FakeAgentAdapter();
+
+  if (!apiKey) {
+    void vscode.window.showWarningMessage(
+      "Factory API key is not configured; using the fake agent until you set it. Run 'Human-Centered Agent: Set Factory API Key' or set FACTORY_API_KEY in your shell.",
+    );
+    return new FakeAgentAdapter();
+  }
+
+  const execPath = config.get<string>("droidExecutablePath", "").trim();
+  return new FactoryDroidAdapter({ apiKey, execPath: execPath || undefined });
 }
 
 /** One workspace root per session; ask when several are open. */

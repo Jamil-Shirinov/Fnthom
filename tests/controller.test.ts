@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, symlinkSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ function demoCopy() {
   for (const entry of ["src", "test", "package.json", "tsconfig.json", "vitest.config.ts"]) {
     cpSync(path.join(DEMO, entry), path.join(dir, entry), { recursive: true });
   }
-  symlinkSync(path.join(DEMO, "node_modules"), path.join(dir, "node_modules"), "dir");
+  cpSync(path.join(DEMO, "node_modules"), path.join(dir, "node_modules"), { recursive: true });
   return dir;
 }
 

@@ -43,10 +43,23 @@ npm install
 npm run build        # host bundle to dist/, webview to webview/dist/
 npm test             # Vitest: controller, function graph, fake agent, protocol
 npm run typecheck
+npm run check:offline # full local reliability check: tests + build
 npm run dev:webview  # the UI in a browser with the scripted agent, no VS Code needed
 npm run preview:fixture  # regenerate the graphs the browser preview shows
 npm run package      # builds, then writes an installable .vsix
 ```
+
+### Offline validation and Factory setup
+
+The extension remains usable without a Factory API key because it falls back to the deterministic fake agent. That makes it easy to keep improving the extension while the team is waiting on account access.
+
+For a Windows shell:
+
+```powershell
+$env:FACTORY_API_KEY = "your-key-here"
+```
+
+Or, in VS Code, run **Human-Centered Agent: Set Factory API Key** from the Command Palette. The extension reads the key from secret storage first, then from `FACTORY_API_KEY`.
 
 Press F5 in VS Code to open an Extension Development Host on `demo/app`, then run **Human-Centered Agent: Open Panel** from the Command Palette. The fake agent is on by default (`humanCenteredAgent.useFakeAgent`).
 

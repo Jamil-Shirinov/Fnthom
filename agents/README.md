@@ -33,3 +33,13 @@ These are suggested prompts, not standing authorization to implement anything.
 The MVP is implemented with a scripted fake agent: planning one function at a time with Accept/Reject and rework, implementation, checks, the function graph with pop-ups and highlighted navigation, export, and VSIX packaging. The real Factory Droid adapter is next. The interaction model changed on Oct 24 at the user's direction; see [the decision record](decisions.md).
 
 The original concept supplied by the user is summarized in [product.md](product.md). Technical recommendations from the discussion are recorded separately. External product comparisons are positioning hypotheses rather than a current competitive audit.
+
+## Offline-ready follow-up while waiting on a Factory key
+
+Until the live key is available, the most useful work is to keep the extension hardened and ready for the real session:
+
+1. Keep the fake-agent path a reliable, fully tested fallback.
+2. Validate offline checks through `npm run check:offline` before each demo handoff.
+3. Make the missing-key UX explicit so contributors know how to set `FACTORY_API_KEY` or use the command palette option.
+4. Keep the live integration checklist in [factory-droid.md](integrations/factory-droid.md) ready for the first authenticated smoke test.
+5. Treat the real adapter as a replacement for the fake backend, not as a product redesign.
