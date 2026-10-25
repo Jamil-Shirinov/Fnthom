@@ -232,7 +232,6 @@ function ProposalCard(props: {
             send({ type: "askQuestion", payload: { ...guard, proposalId: proposal.id, question } });
           }}
         >
-          <label htmlFor={`question-${proposal.id}`}>Ask about this proposal. The answer will not change the plan.</label>
           <textarea
             id={`question-${proposal.id}`}
             rows={2}
