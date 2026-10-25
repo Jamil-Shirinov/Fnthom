@@ -175,12 +175,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             </div>
           )}
         </main>
-      ) : (
-        <div className="empty" role="tabpanel">
-          <p>Describe a feature. The agent proposes it one function at a time; you accept or reject each one before any code is written.</p>
-          <p>Each proposal includes generated code and tests in the editor for review. Accept it to save those files, or rework it to replace the preview.</p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

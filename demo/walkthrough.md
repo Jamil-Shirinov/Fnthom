@@ -20,10 +20,10 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 2. Install the extension, either from a prebuilt file:
 
    ```bash
-   code --install-extension path/to/human-centered-agent-0.1.11.vsix --force
+   code --install-extension path/to/human-centered-agent-0.1.12.vsix --force
    ```
 
-   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.1.11.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
+   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.1.12.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
 
 3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. Trust the workspace when VS Code asks.
 
