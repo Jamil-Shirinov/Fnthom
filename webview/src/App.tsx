@@ -159,7 +159,16 @@ export function App({ bridge }: { bridge: Bridge }) {
       ) : state.plan || busy ? (
         <main className="scroll" role="tabpanel">
           {state.plan || state.phase === "planning" ? (
-            <PlanningView state={state} plan={state.plan} activity={latest} send={send} />
+            <PlanningView
+              state={state}
+              plan={state.plan}
+              activity={latest}
+              send={send}
+              onShowInGraph={(nodeId) => {
+                setSelectedId(nodeId);
+                setTab("graph");
+              }}
+            />
           ) : (
             <div className="empty">
               <p>Reading the code{"…"}</p>

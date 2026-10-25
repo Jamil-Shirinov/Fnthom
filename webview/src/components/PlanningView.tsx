@@ -15,8 +15,24 @@ const BUSY_TEXT: Partial<Record<ApplicationState["phase"], string>> = {
   checking: "Code written. Running the checks…",
 };
 
-export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan | null; activity: string | null; send: Send }) {
-  const { state, plan, activity, send } = props;
+export function PlanningView(props: {
+  state: ApplicationState;
+  plan: FeaturePlan | null;
+  activity: string | null;
+  send: Send;
+  onShowInGraph: (nodeId: string) => void;
+}) {
+  const { state, plan, activity, send, onShowInGraph } = props;
+  const [flashed, setFlashed] = useState<string | null>(null);
+  const showUpcoming = (name: string) => {
+    document.getElementById(upcomingId(name))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashed(name);
+  };
+  useEffect(() => {
+    if (!flashed) return;
+    const timer = setTimeout(() => setFlashed(null), 1600);
+    return () => clearTimeout(timer);
+  }, [flashed]);
   const guard = { sessionId: state.sessionId, expectedRevision: state.stateRevision };
   const proposal = currentProposal(plan);
   const decided = plan?.functions.filter((f) => f.status !== "proposed") ?? [];
@@ -65,7 +81,16 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
       ) : (
         proposal &&
         state.phase === "reviewing" && (
-          <ProposalCard key={proposal.id} proposal={proposal} plan={plan!} nodes={state.graph?.nodes ?? []} guard={guard} send={send} />
+          <ProposalCard
+            key={proposal.id}
+            proposal={proposal}
+            plan={plan!}
+            nodes={state.graph?.nodes ?? []}
+            guard={guard}
+            send={send}
+            onShowInGraph={onShowInGraph}
+            onShowUpcoming={showUpcoming}
+          />
         )
       )}
 
@@ -74,7 +99,7 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
           <h3>Coming up</h3>
           <ol start={acceptedCount + 2}>
             {plan.upcoming.map((u) => (
-              <li key={u.name}>
+              <li key={u.name} id={upcomingId(u.name)} className={flashed === u.name ? "flash" : undefined}>
                 <code>{u.name}</code> <span className="hint">{u.summary}</span>
               </li>
             ))}
@@ -91,9 +116,36 @@ function ProposalCard(props: {
   nodes: GraphNode[];
   guard: { sessionId: string; expectedRevision: number };
   send: Send;
+  onShowInGraph: (nodeId: string) => void;
+  onShowUpcoming: (name: string) => void;
 }) {
-  const { proposal, plan, nodes, guard, send } = props;
-  const related = (name: string) => <RelatedName key={name} name={name} node={findNode(nodes, name)?.node} send={send} />;
+  const { proposal, plan, nodes, guard, send, onShowInGraph, onShowUpcoming } = props;
+  const related = (name: string) => {
+    const node = findNode(nodes, name)?.node;
+    const upcoming = !node && plan.upcoming.some((u) => u.name === name);
+    if (node && !(node.planned && node.status === "new")) {
+      return (
+        <button key={name} type="button" className="code-link" title={`Open ${node.path}:${node.startLine}`} onClick={() => send({ type: "openNode", payload: { nodeId: node.id } })}>
+          {name}
+        </button>
+      );
+    }
+    if (node) {
+      return (
+        <button key={name} type="button" className="code-link" title="Accepted, not written yet. Show it in the graph." onClick={() => onShowInGraph(node.id)}>
+          {name}
+        </button>
+      );
+    }
+    if (upcoming) {
+      return (
+        <button key={name} type="button" className="code-link" title="Not proposed yet. Show it in Coming up." onClick={() => onShowUpcoming(name)}>
+          {name}
+        </button>
+      );
+    }
+    return <code key={name}>{name}</code>;
+  };
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const replaced = proposal.replacesId ? plan.functions.find((f) => f.id === proposal.replacesId) : undefined;
@@ -180,20 +232,6 @@ function ProposalCard(props: {
   );
 }
 
-/** A function name that opens its code in the editor, when the code exists yet. */
-function RelatedName(props: { name: string; node: GraphNode | undefined; send: Send }) {
-  const { name, node, send } = props;
-  if (!node || (node.planned && node.status === "new")) {
-    return <code title={node ? "Planned, not written yet" : undefined}>{name}</code>;
-  }
-  return (
-    <button
-      type="button"
-      className="code-link"
-      title={`Open ${node.path}:${node.startLine}`}
-      onClick={() => send({ type: "openNode", payload: { nodeId: node.id } })}
-    >
-      {name}
-    </button>
-  );
+function upcomingId(name: string): string {
+  return `upcoming-${name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 }
