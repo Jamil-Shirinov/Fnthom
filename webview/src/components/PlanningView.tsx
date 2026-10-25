@@ -192,39 +192,6 @@ function ProposalCard(props: {
         </>
       )}
 
-      {proposal.evidence && proposal.evidence.length > 0 && (
-        <section className="evidence" aria-label="Source context">
-          <div className="evidence__heading">
-            <h3>Source context</h3>
-            <span className="hint">References to inspect, not proof</span>
-          </div>
-          {proposal.evidence.map((reference, index) => (
-            <article className={`evidence__item${reference.verified ? " evidence__item--verified" : " evidence__item--unverified"}`} key={`${reference.path}-${reference.startLine}-${index}`}>
-              <div className="evidence__meta">
-                <button
-                  type="button"
-                  className="code-link"
-                  title="Open cited lines in the editor"
-                  onClick={() =>
-                    send({
-                      type: "openEvidence",
-                      payload: { path: reference.path, startLine: reference.startLine, endLine: reference.endLine },
-                    })
-                  }
-                >
-                  {reference.path}:{reference.startLine}{reference.endLine !== reference.startLine ? `-${reference.endLine}` : ""}
-                </button>
-                <span className="evidence__status">
-                  {reference.verified ? "Quote matched current source" : reference.verificationNote ?? "Could not verify quote"}
-                </span>
-              </div>
-              <pre className="evidence__quote">{reference.quote}</pre>
-              <p>{reference.rationale}</p>
-            </article>
-          ))}
-        </section>
-      )}
-
       {(proposal.calls.length > 0 || proposal.calledBy.length > 0) && (
         <dl className="relations">
           {proposal.calledBy.length > 0 && (
