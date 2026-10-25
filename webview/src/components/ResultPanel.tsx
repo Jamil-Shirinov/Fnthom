@@ -76,7 +76,7 @@ export function ResultPanel(props: {
       <h3>Reading the graph</h3>
       <p className="hint">
         Arrow colors: <span style={{ color: EDGE_STYLE.call.color }}>direct call</span>, <span style={{ color: EDGE_STYLE.dispatch.color }}>call through an interface</span>,{" "}
-        <span style={{ color: EDGE_STYLE.registers.color }}>route registration</span>. Open “Arrow colors” on the graph for details.
+        <span style={{ color: EDGE_STYLE.registers.color }}>route registration</span>.
       </p>
       <ul className="legend">
         {files.map((f) => (

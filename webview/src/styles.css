@@ -83,17 +83,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
 .react-flow__edge.call--planned { opacity: 0.55; }
 .react-flow__edge.call--dimmed { opacity: 0.2; }
 
-.legend-toggle { background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
-.edge-legend {
-  width: 300px; padding: 10px 12px; border-radius: 6px; background: var(--vscode-editorWidget-background, #252526);
-  border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); display: grid; gap: 8px; font-size: 12px;
-}
-.edge-legend__head { display: flex; justify-content: space-between; align-items: center; }
-.edge-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.edge-legend li { display: grid; grid-template-columns: 36px 1fr; gap: 8px; align-items: start; }
-.edge-legend li svg { margin-top: 4px; }
-.edge-legend__label { font-weight: 600; }
-.edge-legend__absent { opacity: 0.55; }
 
 /* Function nodes: a stripe in the file's hue, a border for what the feature changed. */
 .fn {

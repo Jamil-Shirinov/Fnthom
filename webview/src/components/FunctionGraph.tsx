@@ -438,8 +438,6 @@ function GraphCanvas(props: GraphProps) {
     });
   }, [clusters, visible]);
 
-  const kinds = useMemo(() => new Set(visible.edges.map((e) => e.kind)), [visible]);
-  const [legendOpen, setLegendOpen] = useState(true);
   const showOverview = grouped && overview;
 
   return (
@@ -473,15 +471,6 @@ function GraphCanvas(props: GraphProps) {
         />
         <Background gap={24} size={1} />
         <Controls showInteractive={false} />
-        <Panel position="top-right">
-          {legendOpen ? (
-            <EdgeLegend present={kinds} grouped={grouped} overview={showOverview} onClose={() => setLegendOpen(false)} />
-          ) : (
-            <button type="button" className="legend-toggle" onClick={() => setLegendOpen(true)} aria-expanded={false}>
-              Arrow colors
-            </button>
-          )}
-        </Panel>
         {showOverview && (
           <Panel position="bottom-center" className="lod-hint">
             Zoomed out: functions are grouped by what they do. Click a group or zoom in to see its functions.
@@ -546,50 +535,6 @@ function placeCircles(clusters: Cluster[], boxes: Map<string, Box>) {
 const CLUSTER_HUES = [205, 28, 145, 275, 340, 175, 55, 240, 5, 95, 310, 125];
 function clusterHue(index: number): number {
   return CLUSTER_HUES[index % CLUSTER_HUES.length]!;
-}
-
-function EdgeLegend(props: { present: ReadonlySet<GraphEdge["kind"]>; grouped: boolean; overview: boolean; onClose: () => void }) {
-  return (
-    <div className="edge-legend" role="dialog" aria-label="What the arrow colors mean">
-      <div className="edge-legend__head">
-        <strong>What the arrows mean</strong>
-        <button type="button" className="icon" aria-label="Close legend" onClick={props.onClose}>
-          ×
-        </button>
-      </div>
-      <ul>
-        {(Object.keys(EDGE_STYLE) as GraphEdge["kind"][]).map((kind) => {
-          const style = EDGE_STYLE[kind];
-          return (
-            <li key={kind} className={props.present.has(kind) ? "" : "edge-legend__absent"}>
-              <svg width="34" height="10" aria-hidden="true">
-                <line x1="1" y1="5" x2="26" y2="5" stroke={style.color} strokeWidth="2.5" strokeDasharray={style.dash} />
-                <path d="M26 1 L33 5 L26 9 Z" fill={style.color} />
-              </svg>
-              <div>
-                <div className="edge-legend__label" style={{ color: style.color }}>
-                  {style.label}
-                  {!props.present.has(kind) && <span className="hint"> (none in this graph)</span>}
-                </div>
-                <div className="hint">{style.meaning}</div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {props.overview ? (
-        <div className="hint">
-          Each circle is a group of related functions. An arrow means functions in one group call the other; its number
-          counts the calls, and its color is the kind most of them are.
-        </div>
-      ) : (
-        <div className="hint">
-          Arrows point from the caller to the function it uses. Faded arrows are planned and not in the code yet. Click a box to highlight its arrows.
-          {props.grouped && " Zoom out to see the functions grouped by what they do."}
-        </div>
-      )}
-    </div>
-  );
 }
 
 type Box = { x: number; y: number; width: number; height: number };
