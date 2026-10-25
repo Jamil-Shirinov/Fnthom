@@ -45,7 +45,6 @@ export function PlanningView(props: {
     <div className="planning">
       {plan && (
         <div className="planning__summary">
-          <p>{plan.summary}</p>
           {total > 0 && (
             <div className="progress" aria-label={`${acceptedCount} / ${total}`}>
               <div className="progress__bar" style={{ width: `${(acceptedCount / total) * 100}%` }} />
