@@ -37,6 +37,10 @@ export class AgentPanel implements vscode.Disposable {
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "webview", "dist")],
     });
+    panel.iconPath = {
+      light: vscode.Uri.joinPath(context.extensionUri, "media", "icon-light.png"),
+      dark: vscode.Uri.joinPath(context.extensionUri, "media", "icon-dark.png"),
+    };
     AgentPanel.current = new AgentPanel(panel, context.extensionUri, services);
     return AgentPanel.current;
   }

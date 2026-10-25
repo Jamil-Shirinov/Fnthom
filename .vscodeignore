@@ -2,5 +2,6 @@
 !dist/extension.js
 !webview/dist/**
 !package.json
+!media/**
 !README.md
 !LICENSE
