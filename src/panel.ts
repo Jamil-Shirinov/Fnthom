@@ -105,6 +105,10 @@ export class AgentPanel implements vscode.Disposable {
         case "rejectFunction":
           await c.rejectFunction(action.payload.functionId, action.payload.reason, action.payload);
           return reply("requestComplete");
+        case "askQuestion":
+          if (!vscode.workspace.isTrusted) return reply("requestError", "Trust this workspace before the agent reads it.");
+          await c.askQuestion(action.payload.proposalId, action.payload.question, action.payload);
+          return reply("requestComplete");
         case "retry":
           await c.retry(action.payload);
           return reply("requestComplete");
@@ -114,6 +118,9 @@ export class AgentPanel implements vscode.Disposable {
           return reply("requestComplete");
         case "openNode":
           await this.openNode(action.payload.nodeId);
+          return reply("requestComplete");
+        case "openEvidence":
+          await this.openLocation(action.payload.path, action.payload.startLine, action.payload.endLine);
           return reply("requestComplete");
         case "previewChange":
           await this.previewChange(action.payload.path);
@@ -152,17 +159,23 @@ export class AgentPanel implements vscode.Disposable {
     });
   }
 
-  /** Opens the function in its own editor tab and highlights its lines. */
+  /** Opens a function or cited source range and highlights its lines. */
   private async openNode(nodeId: string) {
     const node = this.controller.getState().graph?.nodes.find((n) => n.id === nodeId);
-    const workspace = this.services.workspace;
-    if (!workspace || !node) throw new Error("That function is no longer in the graph.");
+    if (!node) throw new Error("That function is no longer in the graph.");
     if (node.planned && node.status === "new") return; // planned, so there is no code to open yet
+    await this.openLocation(node.path, node.startLine, node.endLine);
+  }
 
-    const doc = await vscode.workspace.openTextDocument(workspace.uri(node.path));
+  private async openLocation(path: string, startLine: number, endLine: number) {
+    const workspace = this.services.workspace;
+    if (!workspace) throw new Error("Open a workspace folder before navigating to source.");
+    if (endLine < startLine) throw new Error("The source range is invalid.");
+    const doc = await vscode.workspace.openTextDocument(workspace.uri(path));
+    if (startLine > doc.lineCount) throw new Error(`The cited line ${startLine} no longer exists in ${path}.`);
     // Serialized lines are one-based and inclusive; editor positions are zero-based.
-    const last = Math.min(node.endLine, doc.lineCount) - 1;
-    const first = Math.min(node.startLine - 1, last);
+    const last = Math.min(endLine, doc.lineCount) - 1;
+    const first = startLine - 1;
     const range = new vscode.Range(first, 0, last, doc.lineAt(last).text.length);
     const editor = await vscode.window.showTextDocument(doc, {
       viewColumn: vscode.ViewColumn.One,

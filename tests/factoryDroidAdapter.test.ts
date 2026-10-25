@@ -15,6 +15,15 @@ const makeValidPlanningTurn = () => ({
     details: ["Use a bounded in-memory cache.", "Expire entries after 60 seconds."],
     calls: [],
     calledBy: ["createApp"],
+    evidence: [
+      {
+        path: "src/app.ts",
+        startLine: 12,
+        endLine: 12,
+        quote: "      await deps.upstream.fetchForecast(city);",
+        rationale: "This is the existing provider call.",
+      },
+    ],
   },
   upcoming: [{ name: "createApp", summary: "Wire the cache into the app." }],
   reworkNote: undefined,
@@ -53,6 +62,7 @@ describe("FactoryDroidAdapter", () => {
 
     expect(turn.summary).toBe("Cache the weather response.");
     expect(turn.next?.name).toBe("createTtlCache");
+    expect(turn.next?.evidence?.[0]?.quote).toContain("fetchForecast");
     expect(turn.upcoming[0]?.name).toBe("createApp");
   });
 

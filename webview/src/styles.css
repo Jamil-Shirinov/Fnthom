@@ -184,6 +184,16 @@ body.vscode-light .tok-bracket0 { color: var(--vscode-editorBracketHighlight-for
 body.vscode-light .tok-bracket1 { color: var(--vscode-editorBracketHighlight-foreground2, #319331); }
 body.vscode-light .tok-bracket2 { color: var(--vscode-editorBracketHighlight-foreground3, #7b3814); }
 .details { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.evidence { display: grid; gap: 8px; margin-top: 14px; }
+.evidence__heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.evidence__heading h3 { margin: 0; }
+.evidence__item { padding: 8px 10px; border-left: 2px solid var(--accent); background: var(--bg); border-radius: 2px; }
+.evidence__item--unverified { border-left-color: var(--bad); }
+.evidence__meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.evidence__status { color: var(--muted); font-size: 11px; }
+.evidence__quote { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 var(--mono); color: var(--fg); }
+.evidence__item p { margin: 0; font-size: 12px; color: var(--muted); }
+.evidence__meta button:disabled { opacity: 0.65; cursor: default; }
 .relations { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 12px 0 0; }
 .relations dt { color: var(--muted); }
 .relations dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -194,6 +204,18 @@ body.vscode-light .tok-bracket2 { color: var(--vscode-editorBracketHighlight-for
 }
 .reject { display: grid; gap: 6px; margin-top: 12px; }
 .reject label { color: var(--muted); font-size: 12px; }
+.follow-ups { display: grid; gap: 8px; margin-top: 14px; }
+.follow-up { padding: 8px 10px; border-left: 2px solid var(--accent); background: var(--bg); border-radius: 2px; }
+.follow-up p { margin: 0; white-space: pre-wrap; }
+.follow-up p + p { margin-top: 8px; }
+.follow-up strong { display: block; margin-bottom: 3px; font-size: 11px; color: var(--muted); }
+.follow-up__form { display: grid; gap: 6px; margin-top: 12px; }
+.follow-up__form label { color: var(--muted); font-size: 12px; }
+.follow-up__form textarea {
+  width: 100%; resize: vertical; font: inherit; padding: 6px 8px;
+  background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); border-radius: 2px;
+}
+.follow-up__pending { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .upcoming ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .upcoming code { color: var(--fg); }

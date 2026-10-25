@@ -2,7 +2,7 @@
 // SDK-specific types stay behind this boundary; callers receive validated domain objects.
 
 import type { ActivityEvent } from "../shared/messages";
-import type { FileChange, FileSnapshot, PlannedFunction, PlanningTurn } from "../shared/schema";
+import type { FileChange, FileSnapshot, FollowUpExchange, PlannedFunction, PlanningTurn } from "../shared/schema";
 
 export type AgentCallOptions = {
   operationId: string;
@@ -22,6 +22,11 @@ export interface AgentAdapter {
     request: { intent: string; context: FileSnapshot[]; history: PlannedFunction[]; lastDecision: Decision | null },
     options: AgentCallOptions,
   ): Promise<PlanningTurn>;
+  /** Read-only answer about the active proposal. It must not change the plan or produce code. */
+  answerQuestion(
+    request: { intent: string; proposal: PlannedFunction; history: FollowUpExchange[]; question: string; context: FileSnapshot[] },
+    options: AgentCallOptions,
+  ): Promise<string>;
   /**
    * Read-only: write the code for every accepted function as full-content changes against the given snapshots.
    * `functions` is the whole planning history; rejected entries say which designs to avoid.

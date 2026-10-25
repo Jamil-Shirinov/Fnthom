@@ -86,6 +86,7 @@ export function PlanningView(props: {
             key={proposal.id}
             proposal={proposal}
             plan={plan!}
+            state={state}
             nodes={state.graph?.nodes ?? []}
             guard={guard}
             send={send}
@@ -114,13 +115,14 @@ export function PlanningView(props: {
 function ProposalCard(props: {
   proposal: PlannedFunction;
   plan: FeaturePlan;
+  state: ApplicationState;
   nodes: GraphNode[];
   guard: { sessionId: string; expectedRevision: number };
   send: Send;
   onShowInGraph: (nodeId: string) => void;
   onShowUpcoming: (name: string) => void;
 }) {
-  const { proposal, plan, nodes, guard, send, onShowInGraph, onShowUpcoming } = props;
+  const { proposal, plan, state, nodes, guard, send, onShowInGraph, onShowUpcoming } = props;
   const related = (name: string) => {
     const node = findNode(nodes, name, `${proposal.path}#${proposal.name}`)?.node;
     const upcoming = !node && plan.upcoming.some((u) => u.name === name);
@@ -149,8 +151,14 @@ function ProposalCard(props: {
   };
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [question, setQuestion] = useState("");
+  const followUps = state.followUps.filter((exchange) => exchange.proposalId === proposal.id);
+  const questionPending = state.pendingQuestionId === proposal.id;
+  const busy = state.operationId !== null;
   const replaced = proposal.replacesId ? plan.functions.find((f) => f.id === proposal.replacesId) : undefined;
   useEffect(() => setRejecting(false), [proposal.id]);
+  useEffect(() => setQuestion(""), [followUps.length]);
 
   return (
     <article className="card card--proposal" aria-label={`Proposed ${KIND_LABEL[proposal.kind]} ${proposal.name}`}>
@@ -181,6 +189,39 @@ function ProposalCard(props: {
         </>
       )}
 
+      {proposal.evidence && proposal.evidence.length > 0 && (
+        <section className="evidence" aria-label="Source context">
+          <div className="evidence__heading">
+            <h3>Source context</h3>
+            <span className="hint">References to inspect, not proof</span>
+          </div>
+          {proposal.evidence.map((reference, index) => (
+            <article className={`evidence__item${reference.verified ? " evidence__item--verified" : " evidence__item--unverified"}`} key={`${reference.path}-${reference.startLine}-${index}`}>
+              <div className="evidence__meta">
+                <button
+                  type="button"
+                  className="code-link"
+                  title="Open cited lines in the editor"
+                  onClick={() =>
+                    send({
+                      type: "openEvidence",
+                      payload: { path: reference.path, startLine: reference.startLine, endLine: reference.endLine },
+                    })
+                  }
+                >
+                  {reference.path}:{reference.startLine}{reference.endLine !== reference.startLine ? `-${reference.endLine}` : ""}
+                </button>
+                <span className="evidence__status">
+                  {reference.verified ? "Quote matched current source" : reference.verificationNote ?? "Could not verify quote"}
+                </span>
+              </div>
+              <pre className="evidence__quote">{reference.quote}</pre>
+              <p>{reference.rationale}</p>
+            </article>
+          ))}
+        </section>
+      )}
+
       {(proposal.calls.length > 0 || proposal.calledBy.length > 0) && (
         <dl className="relations">
           {proposal.calledBy.length > 0 && (
@@ -202,6 +243,52 @@ function ProposalCard(props: {
         </dl>
       )}
 
+      {followUps.length > 0 && (
+        <div className="follow-ups" aria-label="Follow-up answers">
+          {followUps.map((exchange, index) => (
+            <article className="follow-up" key={`${exchange.proposalId}-${index}`}>
+              <p className="follow-up__question"><strong>You asked</strong>{exchange.question}</p>
+              <p className="follow-up__answer"><strong>Agent</strong>{exchange.answer}</p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {asking && !rejecting && (
+        <form
+          className="follow-up__form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send({ type: "askQuestion", payload: { ...guard, proposalId: proposal.id, question } });
+          }}
+        >
+          <label htmlFor={`question-${proposal.id}`}>Ask about this proposal. The answer will not change the plan.</label>
+          <textarea
+            id={`question-${proposal.id}`}
+            rows={2}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            maxLength={2000}
+            autoFocus
+            placeholder="What happens if the cache entry expires?"
+            disabled={busy}
+          />
+          <div className="actions">
+            <button type="submit" className="primary" disabled={busy || !question.trim()}>
+              {questionPending ? "Asking…" : "Ask"}
+            </button>
+            <button type="button" onClick={() => setAsking(false)} disabled={busy}>Close</button>
+          </div>
+        </form>
+      )}
+
+      {questionPending && (
+        <div className="follow-up__pending" role="status">
+          <span className="spinner" aria-hidden="true" />
+          The agent is answering your question…
+        </div>
+      )}
+
       {rejecting ? (
         <form
           className="reject"
@@ -213,21 +300,24 @@ function ProposalCard(props: {
           <label htmlFor="reason">What should change? (optional, it helps the agent rework the plan)</label>
           <textarea id="reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Memory has to stay bounded" />
           <div className="actions">
-            <button type="submit" className="danger">
+            <button type="submit" className="danger" disabled={busy}>
               Rework
             </button>
-            <button type="button" onClick={() => setRejecting(false)}>
+            <button type="button" onClick={() => setRejecting(false)} disabled={busy}>
               Back
             </button>
           </div>
         </form>
       ) : (
         <div className="actions">
-          <button type="button" className="primary" onClick={() => send({ type: "acceptFunction", payload: { ...guard, functionId: proposal.id } })}>
+          <button type="button" className="primary" disabled={busy} onClick={() => send({ type: "acceptFunction", payload: { ...guard, functionId: proposal.id } })}>
             ✓ Accept
           </button>
-          <button type="button" className="danger" onClick={() => setRejecting(true)}>
+          <button type="button" className="danger" disabled={busy} onClick={() => setRejecting(true)}>
             ✕ Rework…
+          </button>
+          <button type="button" disabled={busy} onClick={() => setAsking((open) => !open)}>
+            {asking ? "Close question" : "Ask a question…"}
           </button>
         </div>
       )}

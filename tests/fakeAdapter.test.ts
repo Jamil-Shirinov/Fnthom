@@ -16,6 +16,17 @@ describe("FakeAgentAdapter", () => {
     expect(turn.upcoming.map((u) => u.name)).toEqual(["cacheKey", "withCache", "createApp", "cache.test.ts"]);
   });
 
+  it("answers questions from the active proposal without revising it", async () => {
+    const turn = await agent.planNext({ intent: "Cache it", context, history: [], lastDecision: null }, options());
+    const proposal = { ...turn.next!, status: "proposed" as const };
+    const answer = await agent.answerQuestion(
+      { intent: "Cache it", proposal, history: [], question: "What does this do?", context },
+      options(),
+    );
+    expect(answer).toContain(proposal.purpose);
+    expect(answer).toContain("cannot answer beyond");
+  });
+
   it("reworks the proposal and the upcoming functions after a rejection", async () => {
     const first = await agent.planNext({ intent: "Cache it", context, history: [], lastDecision: null }, options());
     const rejected: PlannedFunction = { ...first.next!, status: "rejected", rejectionReason: "memory must be bounded" };

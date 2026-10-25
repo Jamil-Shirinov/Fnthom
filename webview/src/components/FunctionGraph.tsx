@@ -78,7 +78,7 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
       className={`fn fn--${node.status}${node.planned ? " fn--planned" : ""}${selected ? " fn--selected" : ""}${dimmed ? " fn--dimmed" : ""}`}
       style={{ "--file-hue": hue } as CSSProperties}
     >
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Top} />
       <div className="fn__name" title={node.name}>
         {node.name}
       </div>
@@ -87,7 +87,7 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
         <span className="fn__kind">{KIND_LABEL[node.kind]}</span>
         {status && <span className={`badge badge--${node.status}`}>{status}</span>}
       </div>
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Bottom} />
 
       <NodeToolbar isVisible={selected} position={Position.Bottom} offset={12} className="popup" align="start">
         <div className="popup__head">
@@ -287,10 +287,10 @@ function EdgeLegend(props: { present: ReadonlySet<GraphEdge["kind"]>; onClose: (
   );
 }
 
-/** Left-to-right layers: callers on the left, the functions they call to the right. */
+/** Top-to-bottom layers: callers above the functions they call. */
 function layout(nodes: GraphNode[], edges: CodeGraph["edges"]) {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "LR", nodesep: 24, ranksep: 60, marginx: 20, marginy: 20 });
+  g.setGraph({ rankdir: "TB", nodesep: 36, ranksep: 72, marginx: 20, marginy: 20 });
   g.setDefaultEdgeLabel(() => ({}));
   for (const n of nodes) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   for (const e of edges) g.setEdge(e.from, e.to);

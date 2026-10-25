@@ -26,6 +26,8 @@ export const UiAction = z.discriminatedUnion("type", [
   action("startFeature", { ...sessionGuard, intent: z.string().trim().min(1).max(4000) }),
   action("acceptFunction", { ...sessionGuard, functionId: z.string().min(1) }),
   action("rejectFunction", { ...sessionGuard, functionId: z.string().min(1), reason: z.string().trim().max(2000).optional() }),
+  action("askQuestion", { ...sessionGuard, proposalId: z.string().min(1), question: z.string().trim().min(1).max(2000) }),
+  action("openEvidence", { path: WorkspacePath, startLine: z.number().int().positive(), endLine: z.number().int().positive() }),
   action("retry", { ...sessionGuard }),
   action("showGraph", { ...sessionGuard }),
   action("openNode", { nodeId: z.string().min(1) }),

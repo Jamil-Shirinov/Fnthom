@@ -30,7 +30,7 @@ These are suggested prompts, not standing authorization to implement anything.
 
 ## Status and scope
 
-The MVP is implemented with a scripted fake agent: planning one function at a time with Accept/Reject and rework, implementation, checks, the function graph with pop-ups and highlighted navigation, export, and VSIX packaging. The real Factory Droid adapter is next. The interaction model changed on Oct 24 at the user's direction; see [the decision record](decisions.md).
+The MVP is implemented with a scripted fake agent: planning one function at a time with Accept/Rework, read-only follow-up questions and source evidence references, implementation, checks, the function graph with pop-ups and highlighted navigation, export, and VSIX packaging. A Factory Droid adapter is available for configured sessions. The interaction model changed on Oct 24 at the user's direction; see [the decision record](decisions.md).
 
 The original concept supplied by the user is summarized in [product.md](product.md). Technical recommendations from the discussion are recorded separately. External product comparisons are positioning hypotheses rather than a current competitive audit.
 

@@ -10,6 +10,7 @@
 import type { ActivityEvent } from "../shared/messages";
 import {
   FileChangeSet,
+  FollowUpExchange,
   PlanningTurn,
   emptyState,
   type ApplicationState,
@@ -25,6 +26,7 @@ import { validateChanges } from "../workspace/edits";
 import { projectPlan } from "../workspace/plannedGraph";
 import { MAX_SOURCE_BYTES, type WorkspacePort } from "../workspace/port";
 import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
+import { verifyProposalEvidence } from "./evidence";
 
 export type ControllerEvents = {
   onState: (state: ApplicationState) => void;
@@ -98,7 +100,7 @@ export class SessionController {
     this.lastDecision = null;
     this.baselines.clear();
     this.baselineGraph = null;
-    this.update({ plan: null, applied: [], checks: [], graph: null });
+    this.update({ plan: null, followUps: [], pendingQuestionId: null, applied: [], checks: [], graph: null });
     await this.planTurn("planning");
   }
 
@@ -110,6 +112,35 @@ export class SessionController {
   async rejectFunction(functionId: string, reason: string | undefined, guard: Guard): Promise<void> {
     this.decide(functionId, guard, { functionId, decision: "rejected", ...(reason ? { reason } : {}) });
     await this.planTurn("reworking");
+  }
+
+  async askQuestion(proposalId: string, question: string, guard: Guard): Promise<void> {
+    this.assertGuard(guard);
+    this.requireIdle("ask a follow-up question");
+    const proposal = this.state.plan?.functions.find((f) => f.id === proposalId && f.status === "proposed");
+    if (this.state.phase !== "reviewing" || !proposal) throw new GuardError("That proposal is no longer awaiting a decision.");
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion || trimmedQuestion.length > 2000) throw new GuardError("Enter a question of 1 to 2000 characters.");
+
+    const history = this.state.followUps.filter((exchange) => exchange.proposalId === proposalId);
+    const operationId = this.begin({ pendingQuestionId: proposalId });
+    try {
+      const context = contextOf(await this.sourceSnapshots());
+      const raw = await this.agent.answerQuestion(
+        { intent: this.intent, proposal, history, question: trimmedQuestion, context },
+        this.callOptions(operationId),
+      );
+      if (this.superseded(operationId)) return;
+      const exchange = FollowUpExchange.parse({ proposalId, question: trimmedQuestion, answer: raw.trim() });
+      this.update({
+        followUps: [...this.state.followUps, exchange],
+        pendingQuestionId: null,
+        operationId: null,
+      });
+    } catch (err) {
+      if (!this.superseded(operationId)) this.update({ pendingQuestionId: null, operationId: null });
+      throw err;
+    }
   }
 
   private decide(functionId: string, guard: Guard, decision: Decision) {
@@ -146,6 +177,7 @@ export class SessionController {
       const parsed = PlanningTurn.safeParse(raw);
       if (!parsed.success) throw new Error(`The agent's plan did not have the expected shape: ${issueText(parsed.error.issues)}`);
       const turn = parsed.data;
+      if (turn.next) turn.next = verifyProposalEvidence(turn.next, context);
       if (turn.next && history.some((f) => f.id === turn.next!.id)) throw new Error(`The agent reused the proposal id "${turn.next.id}".`);
 
       const plan: FeaturePlan = {

@@ -15,6 +15,8 @@ The [product concept](../product.md) explains the rationale. This specification 
 - One local workspace folder and one active feature session.
 - TypeScript extension host, React webview, React Flow graph, and an agent adapter (Factory Droid as the target; a fake adapter until then).
 - Planning one function at a time with Accept and Reject, and a reworked plan after each rejection.
+- A follow-up question option on the current proposal; answers explain the proposal without changing the plan.
+- Source references on proposals, with quoted lines checked against the planning context and clickable navigation.
 - Implementation of all accepted functions in one validated, version-checked write.
 - A function graph built from source, with new and changed functions marked, a pop-up per node, and navigation that highlights the node's code.
 - Configured checks after implementation, diffs of what changed, and Markdown export.
@@ -24,7 +26,7 @@ The [product concept](../product.md) explains the rationale. This specification 
 
 - Editor fork, hosted backend, accounts managed by this application, collaboration, vector search, and multiple model providers.
 - Session persistence across window reloads (state is in memory for the MVP).
-- Asking free-form questions about a proposal, and editing a proposal in place instead of rejecting it.
+- Editing a proposal in place instead of rejecting it.
 - Graphs for languages other than TypeScript and JavaScript.
 - Remote/browser workspaces, multiple workspace roots in one session, binary edits, file deletion/rename, and editing files outside the selected root.
 
@@ -44,9 +46,10 @@ If no folder is open, show an actionable empty state. If several roots are open,
 ### Primary flow
 
 1. Enter a feature request and choose **Plan it**. The agent reads bounded repository context.
-2. The agent proposes one function or module: name, kind, file, whether it is new or changes existing code, signature, purpose, how it works, what it calls and what calls it. The panel also lists the upcoming functions the agent expects to propose.
+2. The agent proposes one function or module: name, kind, file, whether it is new or changes existing code, signature, purpose, how it works, what it calls and what calls it. It may attach source references with exact excerpts and a rationale. The extension checks each excerpt against the source context; the UI labels references as context, not proof, and lets the developer open the cited lines.
 3. **Accept** records the decision and asks for the next proposal.
 4. **Reject** takes an optional reason. The agent proposes a replacement and reworks the upcoming functions around the rejection, and says what it changed. The rejected design stays visible in the history.
+   The developer may instead choose **Ask a question** on the current proposal. The agent answers using the proposal and repository context; the answer is shown with the proposal, and the plan remains unchanged.
 5. When the agent reports the plan complete, the extension implements every accepted function, applies the files, saves them, and runs the configured checks.
 6. The panel switches to the function graph. New and changed functions are marked. Clicking a node shows a pop-up (purpose, file and lines, calls and callers, where the purpose came from) and opens the code in an editor tab with those lines highlighted.
 7. The side panel lists changed files with before/after diffs, check results with rerun, the decisions, and export.
@@ -57,7 +60,7 @@ If no folder is open, show an actionable empty state. If several roots are open,
 
 - **Header:** feature request, phase, live agent activity, cancel, reset, and errors with **Try again**.
 - **Planning view:** progress, decided functions (accepted or rejected with reason), the current proposal card, and upcoming functions.
-- **Graph view:** React Flow graph laid out left to right (callers left of callees), a colored stripe per file, a border for new and changed functions, and dashed edges for calls through an interface.
+- **Graph view:** React Flow graph laid out top to bottom (callers above callees), a colored stripe per file, a border for new and changed functions, and dashed edges for calls through an interface.
 - **Result panel:** summary, checks, changed files with diffs, legend, a test-file toggle, export, and rebuild.
 
 Use text as well as color for every state, keep controls keyboard accessible, and follow the active VS Code theme.
@@ -88,7 +91,8 @@ Define runtime schemas first and infer TypeScript types from them. Validate ever
 
 ### Planning
 
-- `FunctionProposal`: `id`, `name`, `kind` (`function | module | route | test`), `path`, `change` (`new | change`), `signature`, `purpose`, `details`, `calls`, `calledBy`, and optional `replacesId` when it reworks a rejected proposal.
+- `FunctionProposal`: `id`, `name`, `kind` (`function | module | route | test`), `path`, `change` (`new | change`), `signature`, `purpose`, `details`, up to five optional source `evidence` references, `calls`, `calledBy`, and optional `replacesId` when it reworks a rejected proposal.
+- `EvidenceReference`: workspace-relative path, one-based inclusive line range, exact quoted text, and rationale. The extension sets `verified` only when the path is in the planning context and the quote matches those lines; otherwise it sets an explanatory `verificationNote`. A matched quote verifies only that the excerpt exists in the context, not the agent's interpretation or proposal.
 - `PlannedFunction`: a proposal plus `status` (`proposed | accepted | rejected`) and optional `rejectionReason`.
 - `FeaturePlan`: `intent`, `summary`, every proposal in order (rejected ones included), `upcoming` (name and summary per expected function), and `reworkNote` after the latest rejection.
 - `PlanningTurn` (agent output): `summary`, `next` (a proposal, or `null` when planning is complete), `upcoming`, optional `reworkNote`.
@@ -144,15 +148,16 @@ One agent turn or mutation runs at a time. Every session-changing action carries
 
 Messages are discriminated unions with `protocolVersion`, `requestId`, `type` and a typed payload.
 
-UI actions: `ready`, `startFeature`, `acceptFunction`, `rejectFunction` (optional reason), `retry`, `showGraph`, `openNode`, `previewChange`, `rerunChecks`, `cancel`, `export`, `resetSession`.
+UI actions: `ready`, `startFeature`, `acceptFunction`, `rejectFunction` (optional reason), `askQuestion` (current proposal id and question), `openEvidence` (workspace-relative path and line range), `retry`, `showGraph`, `openNode`, `previewChange`, `rerunChecks`, `cancel`, `export`, `resetSession`.
 
 Host messages: `stateSnapshot` (authoritative), `activity`, `requestError`, `requestComplete`. Node selection, the test-file toggle and graph positions are UI-local. Render model text as text.
 
 ## 8. Agent adapter
 
-The application-owned interface has `planNext`, `implement`, `describe`, `cancel` and `dispose`:
+The application-owned interface has `planNext`, `answerQuestion`, `implement`, `describe`, `cancel` and `dispose`:
 
 - `planNext({ intent, context, history, lastDecision })` returns a `PlanningTurn`. After a rejection it must rework the upcoming functions and explain the change.
+- `answerQuestion({ intent, proposal, history, question, context })` answers a follow-up about the active proposal. It is read-only and must not alter the proposal or plan.
 - `implement({ intent, functions, context })` returns full-content file changes for the accepted functions; rejected entries say which designs to avoid.
 - `describe({ nodes })` returns one-sentence purposes for graph nodes without a plan entry or doc comment.
 
@@ -196,6 +201,8 @@ One root `package.json` and lockfile. esbuild bundles the host (minified, includ
 | Request the demo feature | First function proposal appears with explanation and upcoming functions; repository unchanged |
 | Accept | Next proposal appears; the accepted function moves to the history |
 | Reject with a reason | A replacement appears with a rework note; upcoming functions change to match; the rejected design stays visible |
+| Ask a follow-up about the current proposal | An answer appears without changing the proposal or the rest of the plan |
+| Proposal includes source references | Exact excerpts are checked against planning context; matched references navigate to the cited lines and are explicitly not presented as proof |
 | Decide twice or on a stale revision | Rejected without changing state |
 | Last acceptance | All accepted functions are written at once and checks run |
 | Target file unsaved or changed meanwhile | Nothing is written; the user can try again |

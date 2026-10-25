@@ -3,7 +3,7 @@
 // rewrites the rest of the plan to match, so the accept/reject loop can be demonstrated without a model.
 // The generated code is assembled from the chosen designs; every combination typechecks and passes its tests.
 
-import type { FileChange, FileSnapshot, FunctionProposal, PlannedFunction, UpcomingFunction } from "../shared/schema";
+import type { EvidenceReference, FileChange, FileSnapshot, FunctionProposal, PlannedFunction, UpcomingFunction } from "../shared/schema";
 
 export const STEP_KEYS = ["store", "key", "wiring", "app", "tests"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
@@ -484,3 +484,79 @@ export const EXISTING_DESCRIPTIONS: Record<string, string> = {
   "src/server.ts#(module)": "Entry point: starts the API on PORT (3000 by default) with the mock forecast provider.",
   "test/weather.test.ts#(module)": "Baseline endpoint tests: response schema, input validation and provider failures.",
 };
+
+export function evidenceFor(step: StepKey): EvidenceReference[] {
+  const reference = (path: string, startLine: number, endLine: number, quote: string, rationale: string): EvidenceReference => ({
+    path,
+    startLine,
+    endLine,
+    quote,
+    rationale,
+  });
+  switch (step) {
+    case "store":
+      return [
+        reference(
+          "src/upstream.ts",
+          7,
+          7,
+          "/** Stand-in for a slow, metered forecast provider. Counts calls so tests can see upstream traffic. */",
+          "The current provider is deliberately slow and metered, making repeated calls a useful target for caching.",
+        ),
+      ];
+    case "key":
+      return [
+        reference(
+          "src/app.ts",
+          9,
+          9,
+          "    const city = req.params.city.trim();",
+          "The route trims city names before using them, so cache keys should follow the same normalization.",
+        ),
+      ];
+    case "wiring":
+      return [
+        reference(
+          "src/upstream.ts",
+          3,
+          5,
+          "export interface WeatherUpstream {\n  fetchForecast(city: string): Promise<Forecast>;\n}",
+          "The provider is expressed as an interface, so a wrapper can preserve the route's dependency shape.",
+        ),
+        reference(
+          "src/app.ts",
+          16,
+          16,
+          "      const forecast = await deps.upstream.fetchForecast(city);",
+          "This is the current call site that reaches the upstream provider.",
+        ),
+      ];
+    case "app":
+      return [
+        reference(
+          "src/app.ts",
+          8,
+          8,
+          '  app.get("/api/weather/:city", async (req, res) => {',
+          "The route is registered inside createApp, where the caching dependency needs to be wired.",
+        ),
+        reference(
+          "src/app.ts",
+          16,
+          16,
+          "      const forecast = await deps.upstream.fetchForecast(city);",
+          "This route currently calls the provider for each valid request.",
+        ),
+      ];
+    case "tests":
+      return [
+        reference(
+          "test/weather.test.ts",
+          8,
+          14,
+          '  it("returns a response that matches the WeatherResponse schema", async () => {\n    const app = createApp({ upstream: createMockUpstream({ latencyMs: 0 }) });\n    const res = await request(app).get("/api/weather/Berkeley");\n\n    expect(res.status).toBe(200);\n    expect(WeatherResponse.safeParse(res.body).success).toBe(true);\n    expect(res.body.city).toBe("Berkeley");',
+          "Existing endpoint tests assert the response schema and city, which should remain true for cached and uncached requests.",
+        ),
+      ];
+  }
+}

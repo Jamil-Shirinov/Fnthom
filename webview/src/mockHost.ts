@@ -5,14 +5,22 @@
 // Add ?fail=1 to the preview URL to make the check fail.
 
 import type { Decision } from "../../src/agent/adapter";
+import { verifyProposalEvidence } from "../../src/agent/evidence";
 import { FakeAgentAdapter } from "../../src/agent/fakeAdapter";
 import { projectPlan } from "../../src/workspace/plannedGraph";
 import { PROTOCOL_VERSION, type HostMessage } from "../../src/shared/messages";
 import { CodeGraph, emptyState, type AppliedFile, type ApplicationState, type FileSnapshot } from "../../src/shared/schema";
 import graphs from "./fixtures/caching-graphs.json";
+import appSource from "../../demo/app/src/app.ts?raw";
+import upstreamSource from "../../demo/app/src/upstream.ts?raw";
+import weatherTests from "../../demo/app/test/weather.test.ts?raw";
 
 const DELAY_MS = 500;
-const CONTEXT: FileSnapshot[] = [{ path: "src/app.ts", exists: true, content: "", contentHash: "sha256:preview" }];
+const CONTEXT: FileSnapshot[] = [
+  { path: "src/app.ts", exists: true, content: appSource, contentHash: "sha256:preview-app" },
+  { path: "src/upstream.ts", exists: true, content: upstreamSource, contentHash: "sha256:preview-upstream" },
+  { path: "test/weather.test.ts", exists: true, content: weatherTests, contentHash: "sha256:preview-tests" },
+];
 
 export function createMockHost(deliver: (message: HostMessage) => void) {
   const agent = new FakeAgentAdapter({ delayMs: DELAY_MS });
@@ -46,7 +54,8 @@ export function createMockHost(deliver: (message: HostMessage) => void) {
     set({ graph: plannedGraph() });
     const history = state.plan?.functions ?? [];
     const turn = await agent.planNext({ intent, context: CONTEXT, history, lastDecision }, options(operationId));
-    const functions = turn.next ? [...history, { ...turn.next, status: "proposed" as const }] : history;
+    const next = turn.next ? verifyProposalEvidence(turn.next, CONTEXT) : null;
+    const functions = next ? [...history, { ...next, status: "proposed" as const }] : history;
     set({ plan: { intent, summary: turn.summary, functions, upcoming: turn.upcoming, reworkNote: turn.reworkNote ?? null } });
     if (turn.next) return set({ phase: "reviewing", operationId: null });
 
@@ -113,6 +122,44 @@ export function createMockHost(deliver: (message: HostMessage) => void) {
         const decision: Decision = { functionId: String(p.functionId), decision: "rejected", ...(p.reason ? { reason: String(p.reason) } : {}) };
         decide(decision.functionId, decision);
         void plan("reworking", decision).then(done);
+        return;
+      }
+      case "askQuestion": {
+        const proposalId = String(p.proposalId);
+        const question = String(p.question);
+        const proposal = state.plan?.functions.find((f) => f.id === proposalId && f.status === "proposed");
+        if (!proposal || state.phase !== "reviewing") {
+          deliver({
+            protocolVersion: PROTOCOL_VERSION,
+            type: "requestError",
+            requestId: message.requestId,
+            payload: { message: "That proposal is no longer awaiting a decision." },
+          });
+          return;
+        }
+        const history = state.followUps.filter((exchange) => exchange.proposalId === proposalId);
+        const operationId = begin({ pendingQuestionId: proposalId });
+        void agent
+          .answerQuestion({ intent, proposal, history, question, context: CONTEXT }, options(operationId))
+          .then((answer) => {
+            if (state.operationId !== operationId) return;
+            set({
+              followUps: [...state.followUps, { proposalId, question, answer }],
+              pendingQuestionId: null,
+              operationId: null,
+            });
+            done();
+          })
+          .catch((error: unknown) => {
+            if (state.operationId !== operationId) return;
+            set({ pendingQuestionId: null, operationId: null });
+            deliver({
+              protocolVersion: PROTOCOL_VERSION,
+              type: "requestError",
+              requestId: message.requestId,
+              payload: { message: error instanceof Error ? error.message : String(error) },
+            });
+          });
         return;
       }
       case "showGraph":

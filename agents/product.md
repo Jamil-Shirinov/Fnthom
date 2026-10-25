@@ -33,7 +33,7 @@ Selecting "Cache lookup" should navigate to its implementation. The current node
 1. Developer requests a feature.
 2. Agent reads relevant repository context.
 3. Agent proposes the first function or module: what it is for, how it works, its signature and file, and what it calls and is called by. Upcoming functions are listed so the developer sees where the plan is going.
-4. Developer accepts or rejects it. A rejection, optionally with a reason, makes the agent propose a replacement and rework the upcoming functions to account for it.
+4. Developer inspects any linked source context, accepts or rejects the proposal, or asks a follow-up question without changing it. Source references are not treated as proof. A rejection, optionally with a reason, makes the agent propose a replacement and rework the upcoming functions to account for it.
 5. Planning continues one function at a time until the agent reports the plan complete. No code is written before this point.
 6. The extension implements every accepted function, runs the configured checks, and shows a graph of how the project's functions now connect, with new and changed functions marked.
 7. Clicking a node shows a small pop-up with the function's purpose and opens its code in an editor tab with the responsible lines highlighted.

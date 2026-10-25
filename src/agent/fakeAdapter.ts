@@ -1,7 +1,7 @@
 // Deterministic stand-in for Factory Droid, driven by the scripted caching scenario in fakeScenario.ts.
 // Used for the demo and tests until the real adapter passes the proposal-only gate.
 
-import type { FileChange, FileSnapshot, PlannedFunction, PlanningTurn } from "../shared/schema";
+import type { FileChange, FileSnapshot, FollowUpExchange, PlannedFunction, PlanningTurn } from "../shared/schema";
 import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
 import {
   EXISTING_DESCRIPTIONS,
@@ -13,6 +13,7 @@ import {
   proposalFor,
   stepOf,
   upcomingAfter,
+  evidenceFor,
 } from "./fakeScenario";
 
 export type FakeAdapterOptions = {
@@ -62,6 +63,7 @@ export class FakeAgentAdapter implements AgentAdapter {
       next: {
         id: `fn-${step}-${attempts + 1}`,
         ...proposalFor(step, choices),
+        evidence: evidenceFor(step),
         ...(rejected && request.lastDecision ? { replacesId: request.lastDecision.functionId } : {}),
       },
       upcoming: upcomingAfter(index, choices),
@@ -76,6 +78,22 @@ export class FakeAgentAdapter implements AgentAdapter {
     const accepted = request.functions.filter((f) => f.status === "accepted").length;
     await this.activity(options, "status", `Writing code for ${accepted} accepted functions`);
     return filesFor(choicesFrom(request.functions), request.context);
+  }
+
+  async answerQuestion(
+    request: { intent: string; proposal: PlannedFunction; history: FollowUpExchange[]; question: string; context: FileSnapshot[] },
+    options: AgentCallOptions,
+  ): Promise<string> {
+    await this.activity(options, "status", `Answering a question about ${request.proposal.name}`);
+    const details = request.proposal.details.map((detail) => `- ${detail}`).join("\n");
+    return [
+      `This scripted demo agent can only explain the current proposal for ${request.proposal.name}.`,
+      request.proposal.purpose,
+      details,
+      "It cannot answer beyond the information in this proposal.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   async describe(

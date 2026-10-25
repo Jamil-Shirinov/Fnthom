@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { FileChange, FileSnapshot, PlanningTurn, PlannedFunction, type FileChange as FileChangeType, type FileSnapshot as FileSnapshotType, type PlannedFunction as PlannedFunctionType, type PlanningTurn as PlanningTurnType } from "../shared/schema";
+import {
+  FileChange,
+  FileSnapshot,
+  PlanningTurn,
+  type FileChange as FileChangeType,
+  type FileSnapshot as FileSnapshotType,
+  type FollowUpExchange,
+  type PlannedFunction,
+  type PlanningTurn as PlanningTurnType,
+} from "../shared/schema";
 import { AgentCancelledError, type AgentAdapter, type AgentCallOptions, type Decision } from "./adapter";
 
 export type FactoryDroidAdapterOptions = {
@@ -31,7 +40,12 @@ export class FactoryDroidAdapter implements AgentAdapter {
     options: AgentCallOptions,
   ): Promise<PlanningTurn> {
     const payload = { type: "planNext", request };
-    const turn = await this.runJson<PlanningTurn>("Propose the next function or report that the plan is complete.", payload, options, "planning turn");
+    const turn = await this.runJson<PlanningTurn>(
+      "Propose the next function or report that the plan is complete. For a proposal, include up to five evidence references only when they directly contextualize the design. Each reference must contain the exact quoted source lines, workspace-relative path, one-based inclusive line range, and a short rationale. Cite only supplied source context; omit unverifiable references. These citations provide context, not proof. Do not set verified or verificationNote.",
+      payload,
+      options,
+      "planning turn",
+    );
     return turn;
   }
 
@@ -42,6 +56,20 @@ export class FactoryDroidAdapter implements AgentAdapter {
     const payload = { type: "implement", request };
     const files = await this.runJson<FileChange[]>("Write the accepted plan as full-content file updates.", payload, options, "implementation output");
     return files;
+  }
+
+  async answerQuestion(
+    request: { intent: string; proposal: PlannedFunction; history: FollowUpExchange[]; question: string; context: FileSnapshotType[] },
+    options: AgentCallOptions,
+  ): Promise<string> {
+    const payload = { type: "answerQuestion", request };
+    const result = await this.runJson<{ answer: string }>(
+      "Answer the developer's follow-up about the active proposal using the supplied repository context. Do not revise the proposal, make a new plan, or produce code.",
+      payload,
+      options,
+      "follow-up answer",
+    );
+    return result.answer;
   }
 
   async describe(
@@ -197,6 +225,8 @@ export class FactoryDroidAdapter implements AgentAdapter {
         return z.array(FileChange);
       case "node descriptions":
         return z.record(z.string(), z.string());
+      case "follow-up answer":
+        return z.object({ answer: z.string().trim().min(1).max(8000) });
       default:
         return z.any();
     }

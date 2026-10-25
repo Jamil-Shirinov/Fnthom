@@ -6,4 +6,4 @@ TypeScript code that runs inside VS Code. `extension.ts` handles activation, com
 - [workspace/](workspace/README.md): source discovery, edit validation and application, the function graph, diffs, and checks.
 - [shared/](shared/README.md): portable schemas and message contracts used by both host and UI.
 
-The host owns authoritative application state, credentials, file access, and applying changes. The React interface receives serializable state and sends validated actions.
+The host owns authoritative application state, credentials, file access, and applying changes. The React interface receives serializable state and sends validated actions. During proposal review, the developer can ask read-only follow-up questions; answers are kept with that proposal and do not alter the plan.

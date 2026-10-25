@@ -1,6 +1,6 @@
 // Builds the feature reference from session state alone, with no model call (application-spec.md, section 11).
 
-import { EDGE_COLORS, type ApplicationState } from "./schema";
+import { EDGE_COLORS, type ApplicationState, type EvidenceReference } from "./schema";
 
 const mermaidId = (id: string) => `n_${id.replace(/[^A-Za-z0-9_]/g, "_")}`;
 const mermaidText = (text: string) => text.replace(/"/g, "'").replace(/[[\]{}|<>]/g, " ");
@@ -17,12 +17,17 @@ export function buildFeatureReference(state: ApplicationState): string {
     accepted.forEach((f, i) => {
       lines.push(`${i + 1}. **${f.name}** in \`${f.path}\` (${f.change === "new" ? "new" : "changed"}): ${f.purpose}`);
       for (const d of f.details) lines.push(`   - ${d}`);
+      appendEvidence(lines, f.evidence);
     });
     const rejected = plan.functions.filter((f) => f.status === "rejected");
     if (rejected.length) {
       lines.push("", "### Rejected designs", "");
-      for (const f of rejected) lines.push(`- **${f.name}**: ${f.purpose}${f.rejectionReason ? ` Reason: ${f.rejectionReason}` : ""}`);
+      for (const f of rejected) {
+        lines.push(`- **${f.name}**: ${f.purpose}${f.rejectionReason ? ` Reason: ${f.rejectionReason}` : ""}`);
+        appendEvidence(lines, f.evidence);
+      }
     }
+
     lines.push("");
   }
 
@@ -60,4 +65,15 @@ export function buildFeatureReference(state: ApplicationState): string {
   for (const c of state.checks) lines.push(`- ${c.label}: ${c.status}${c.exitCode !== undefined ? ` (exit ${c.exitCode})` : ""}, ${c.finishedAt}`);
   lines.push("");
   return lines.join("\n");
+}
+
+function appendEvidence(lines: string[], evidence: EvidenceReference[] | undefined) {
+  if (!evidence?.length) return;
+  lines.push("   - Source context (references, not proof):");
+  for (const reference of evidence) {
+    const range = reference.startLine === reference.endLine ? `${reference.startLine}` : `${reference.startLine}-${reference.endLine}`;
+    const status = reference.verified ? "quote matched at planning time" : "quote not verified";
+    lines.push(`     - \`${reference.path}:${range}\` (${status}): ${reference.rationale}`);
+    for (const line of reference.quote.split("\n")) lines.push(`       > ${line}`);
+  }
 }

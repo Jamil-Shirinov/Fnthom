@@ -1,6 +1,7 @@
 # Agent adapter and session controller
 
-- `adapter.ts`: the application-owned agent interface (`planNext`, `implement`, `describe`). The Factory Droid adapter will implement it.
+- `adapter.ts`: the application-owned agent interface (`planNext`, `answerQuestion`, `implement`, `describe`). The Factory Droid adapter implements the same interface.
+- `evidence.ts`: checks proposal source excerpts against the exact planning context; a text match does not validate the proposal's rationale.
 - `fakeAdapter.ts` and `fakeScenario.ts`: the deterministic agent for the demo and tests. Each of the five caching functions has two designs; rejecting one switches to the other and rewrites the remaining plan.
 - `controller.ts`: the authoritative state machine. It runs the planning loop, records decisions, implements the accepted plan, runs checks, and builds the graph.
 

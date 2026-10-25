@@ -39,3 +39,5 @@ Errors and cancellation go to `needsAttention` with a retry. One agent turn runs
 The graph is built from the actual saved source with the TypeScript compiler API, not from the plan. Calls are resolved through imports and aliases; calls through an interface link to every function that returns that interface and are drawn dashed, because any of them may run. New and changed functions are found by comparing declaration hashes with the graph built just before implementation. Saving a file rebuilds the graph so links keep pointing at the right lines.
 
 Purposes shown in pop-ups say where they came from: the accepted plan, the code's own doc comment, or an agent description. A passing check supports the behavior it exercises; it is shown next to the graph, not as proof of every edge.
+
+Proposal evidence references point to source excerpts supplied in the planning context. The extension compares each quoted excerpt with those snapshots, and the UI can open the cited lines. A match establishes only that the text was present in the cited context; it does not prove the agent's rationale or the proposed change.

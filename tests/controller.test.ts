@@ -57,6 +57,12 @@ describe("planning one function at a time", () => {
     expect(ctx.proposal().name).toBe("createTtlCache");
     expect(ctx.state().plan!.upcoming).toHaveLength(4);
     expect(ctx.activity.length).toBeGreaterThan(0);
+    expect(ctx.proposal().evidence?.[0]).toMatchObject({
+      path: "src/upstream.ts",
+      startLine: 7,
+      endLine: 7,
+      verified: true,
+    });
 
     await ctx.controller.acceptFunction(ctx.proposal().id, ctx.guard());
     expect(ctx.state().plan!.functions.map((f) => `${f.name}:${f.status}`)).toEqual(["createTtlCache:accepted", "cacheKey:proposed"]);
@@ -90,6 +96,27 @@ describe("planning one function at a time", () => {
     expect(ctx.state().phase).toBe("done");
     expect(ctx.state().graph!.nodes.some((n) => n.planned)).toBe(false);
     expect(ctx.state().graph!.nodes.find((n) => n.id === "src/cache.ts#createTtlCache")?.status).toBe("new");
+  });
+
+  it("answers follow-up questions without changing the proposal or plan", async () => {
+    const ctx = setup();
+    await ctx.controller.startFeature("Add caching", ctx.guard());
+    const proposal = ctx.proposal();
+    const plan = ctx.state().plan;
+
+    await ctx.controller.askQuestion(proposal.id, "How does this handle memory?", ctx.guard());
+
+    expect(ctx.state().phase).toBe("reviewing");
+    expect(ctx.state().plan).toBe(plan);
+    expect(ctx.state().followUps).toEqual([
+      expect.objectContaining({
+        proposalId: proposal.id,
+        question: "How does this handle memory?",
+        answer: expect.stringContaining(proposal.purpose),
+      }),
+    ]);
+    await ctx.controller.acceptFunction(proposal.id, ctx.guard());
+    expect(ctx.proposal().name).toBe("cacheKey");
   });
 
   it("reworks the remaining plan after a rejection and keeps the rejected design in the history", async () => {

@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 4;
 
 const id = z.string().min(1);
 
@@ -22,6 +22,18 @@ export const WorkspacePath = z
 export type WorkspacePath = z.infer<typeof WorkspacePath>;
 
 // ---------------------------------------------------------------- planning
+
+export const EvidenceReference = z.object({
+  path: WorkspacePath,
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  quote: z.string().min(1).max(1200),
+  rationale: z.string().trim().min(1).max(500),
+  /** Set by the extension after matching the quote against the current source snapshot. */
+  verified: z.boolean().optional(),
+  verificationNote: z.string().optional(),
+}).refine((reference) => reference.endLine >= reference.startLine, "endLine must not precede startLine");
+export type EvidenceReference = z.infer<typeof EvidenceReference>;
 
 export const FunctionKind = z.enum(["function", "module", "route", "test"]);
 export type FunctionKind = z.infer<typeof FunctionKind>;
@@ -38,6 +50,8 @@ export const FunctionProposal = z.object({
   purpose: z.string().min(1),
   /** How it works, in a few short points: decisions, edge cases, assumptions. */
   details: z.array(z.string()),
+  /** Existing source excerpts that help explain why this proposal is relevant. They are context, not proof. */
+  evidence: z.array(EvidenceReference).max(5).optional(),
   /** Names of the functions it will call, existing or planned. */
   calls: z.array(z.string()),
   /** Names of the functions that will call it. */
@@ -79,6 +93,13 @@ export const PlanningTurn = z.object({
   reworkNote: z.string().optional(),
 });
 export type PlanningTurn = z.infer<typeof PlanningTurn>;
+
+export const FollowUpExchange = z.object({
+  proposalId: id,
+  question: z.string().min(1),
+  answer: z.string().min(1).max(8000),
+});
+export type FollowUpExchange = z.infer<typeof FollowUpExchange>;
 
 // ---------------------------------------------------------------- implementation
 
@@ -208,6 +229,8 @@ export const ApplicationState = z.object({
   workspaceId: z.string(),
   phase: Phase,
   plan: FeaturePlan.nullable(),
+  followUps: z.array(FollowUpExchange),
+  pendingQuestionId: id.nullable(),
   applied: z.array(AppliedFile),
   checks: z.array(CheckResult),
   graph: CodeGraph.nullable(),
@@ -224,6 +247,8 @@ export function emptyState(sessionId: string, workspaceId: string): ApplicationS
     workspaceId,
     phase: "idle",
     plan: null,
+    followUps: [],
+    pendingQuestionId: null,
     applied: [],
     checks: [],
     graph: null,

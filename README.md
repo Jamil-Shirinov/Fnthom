@@ -21,7 +21,7 @@ Working stack: VS Code extension, TypeScript, React, React Flow, and Factory Dro
 └── tests/                 # Focused integration and behavior tests
 ```
 
-How it works: describe a feature, and the agent proposes it one function at a time. Accept each function or reject it (optionally saying why), and the agent reworks the rest of the plan around your rejection. The panel has a Decisions tab and a Graph tab; each accepted function shows up in the graph right away as a planned box. When everything is planned, the extension writes the code, runs the project's tests, and shows a graph of how the functions connect. Click any function to see what it does and jump to its highlighted code. The agent is currently a scripted fake that knows the caching demo in `demo/app`; the real Factory Droid adapter comes next (see [application-spec.md](agents/implementation/application-spec.md)). Directory README files describe ownership.
+How it works: describe a feature, and the agent proposes it one function at a time. Inspect source references, accept or rework each function, or ask a follow-up question without changing the plan. The extension checks that quoted references match the planning context, but treats them as context rather than proof. Accepted functions appear in the graph as planned nodes. Once planning is complete, the extension writes the code, runs the project's tests, and shows how functions connect. Click a function to see its purpose and jump to its highlighted code. The scripted fake agent knows the caching demo in `demo/app`; the Factory Droid adapter is available for configured sessions (see [application-spec.md](agents/implementation/application-spec.md)).
 
 ## Try it in VS Code
 
