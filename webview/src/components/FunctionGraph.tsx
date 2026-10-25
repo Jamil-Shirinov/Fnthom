@@ -27,8 +27,8 @@ const NODE_HEIGHT = 62;
 
 // Level of detail, like a map: below OVERVIEW_BELOW the graph shows one blob per cluster, above DETAIL_ABOVE the
 // functions. The gap between the two keeps the view from flickering at the boundary.
-const OVERVIEW_BELOW = 0.22;
-const DETAIL_ABOVE = 0.27;
+const OVERVIEW_BELOW = 0.34;
+const DETAIL_ABOVE = 0.41;
 /** Zoom used when the user opens a cluster; comfortably inside the detail range. */
 const OPEN_CLUSTER_ZOOM = 0.8;
 
