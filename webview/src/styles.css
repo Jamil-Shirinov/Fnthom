@@ -251,10 +251,6 @@ button.upcoming__toggle--open { transform: rotate(90deg); }
 }
 .legend { margin-bottom: 10px; font-size: 12px; }
 .legend li { display: flex; align-items: center; gap: 8px; }
-.legend__box { width: 16px; height: 12px; border-radius: 3px; border: 2px solid; flex: none; }
-.legend__box--new { border-color: var(--new); }
-.legend__box--changed { border-color: var(--changed); }
-.legend__box--planned { border-color: var(--muted); border-style: dashed; }
 .legend__file { width: 6px; height: 14px; border-radius: 2px; flex: none; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 

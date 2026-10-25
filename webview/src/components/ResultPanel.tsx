@@ -17,7 +17,6 @@ export function ResultPanel(props: {
   const busy = state.operationId !== null;
   const counts = { new: 0, changed: 0 };
   for (const n of graph.nodes) if (n.status !== "unchanged" && n.kind !== "test") counts[n.status] += 1;
-  const planned = graph.nodes.some((n) => n.planned);
   const files = [...new Set(graph.nodes.map((n) => n.path))].sort();
   const failed = state.checks.filter((c) => c.status !== "passed");
 
@@ -75,19 +74,6 @@ export function ResultPanel(props: {
       )}
 
       <h3>Reading the graph</h3>
-      <ul className="legend">
-        <li>
-          <span className="legend__box legend__box--new" /> New in this feature
-        </li>
-        <li>
-          <span className="legend__box legend__box--changed" /> Changed by this feature
-        </li>
-        {planned && (
-          <li>
-            <span className="legend__box legend__box--planned" /> Planned, not written yet
-          </li>
-        )}
-      </ul>
       <p className="hint">
         Arrow colors: <span style={{ color: EDGE_STYLE.call.color }}>direct call</span>, <span style={{ color: EDGE_STYLE.dispatch.color }}>call through an interface</span>,{" "}
         <span style={{ color: EDGE_STYLE.registers.color }}>route registration</span>. Open “Arrow colors” on the graph for details.
