@@ -218,6 +218,15 @@ body.vscode-light .tok-bracket2 { color: var(--vscode-editorBracketHighlight-for
 }
 .follow-up__pending { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.upcoming__head { display: inline-flex; align-items: center; gap: 4px; }
+/* The arrow stays invisible until the heading or the arrow itself is hovered (or focused from the keyboard). */
+button.upcoming__toggle {
+  background: none; padding: 2px 4px; color: var(--muted); opacity: 0; display: inline-flex;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.upcoming__head:hover .upcoming__toggle, button.upcoming__toggle:focus-visible { opacity: 1; }
+button.upcoming__toggle--open { transform: rotate(90deg); }
+.upcoming ol[hidden] { display: none; }
 .upcoming ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .upcoming code { color: var(--fg); }
 .upcoming li { border-radius: 4px; transition: background-color 0.3s; }

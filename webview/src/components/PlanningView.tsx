@@ -25,9 +25,12 @@ export function PlanningView(props: {
 }) {
   const { state, plan, activity, send, onShowInGraph } = props;
   const [flashed, setFlashed] = useState<string | null>(null);
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
   const showUpcoming = (name: string) => {
-    document.getElementById(upcomingId(name))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setUpcomingOpen(true);
     setFlashed(name);
+    // Wait for the list to render if it was collapsed.
+    requestAnimationFrame(() => document.getElementById(upcomingId(name))?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
   useEffect(() => {
     if (!flashed) return;
@@ -99,8 +102,22 @@ export function PlanningView(props: {
 
       {plan && plan.upcoming.length > 0 && (
         <div className="upcoming">
-          <h3>Coming up</h3>
-          <ol start={acceptedCount + 2}>
+          <h3 className="upcoming__head">
+            Coming up
+            <button
+              type="button"
+              className={`upcoming__toggle${upcomingOpen ? " upcoming__toggle--open" : ""}`}
+              aria-expanded={upcomingOpen}
+              aria-controls="upcoming-list"
+              aria-label={upcomingOpen ? "Hide the functions coming up" : "Show the functions coming up"}
+              onClick={() => setUpcomingOpen((open) => !open)}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </h3>
+          <ol id="upcoming-list" start={acceptedCount + 2} hidden={!upcomingOpen}>
             {plan.upcoming.map((u) => (
               <li key={u.name} id={upcomingId(u.name)} className={flashed === u.name ? "flash" : undefined}>
                 <code>{u.name}</code> <span className="hint">{u.summary}</span>
