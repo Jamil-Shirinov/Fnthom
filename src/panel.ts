@@ -15,7 +15,7 @@ export type PanelServices = {
 };
 
 export class AgentPanel implements vscode.Disposable {
-  static readonly viewType = "humanCenteredAgent.panel";
+  static readonly viewType = "fnthom.panel";
   private static current: AgentPanel | undefined;
 
   private readonly disposables: vscode.Disposable[] = [];
@@ -32,7 +32,7 @@ export class AgentPanel implements vscode.Disposable {
       AgentPanel.current.panel.reveal(vscode.ViewColumn.Two);
       return AgentPanel.current;
     }
-    const panel = vscode.window.createWebviewPanel(AgentPanel.viewType, "Human-Centered Agent", vscode.ViewColumn.Two, {
+    const panel = vscode.window.createWebviewPanel(AgentPanel.viewType, "Fnthom", vscode.ViewColumn.Two, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "webview", "dist")],
@@ -227,7 +227,7 @@ export class AgentPanel implements vscode.Disposable {
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="${asset("index.css")}" />
-    <title>Human-Centered Agent</title>
+    <title>Fnthom</title>
   </head>
   <body>
     <div id="root"></div>

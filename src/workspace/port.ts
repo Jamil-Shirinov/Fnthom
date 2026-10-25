@@ -28,7 +28,7 @@ export interface WorkspacePort {
 
 /** Source files the graph and the agent look at. Build output, dependencies and VCS data are never source. */
 export const SOURCE_FILE = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/i;
-export const IGNORED_DIR = /(^|\/)(node_modules|dist|out|build|coverage|\.git|\.vscode|\.human-centered-agent)(\/|$)/;
+export const IGNORED_DIR = /(^|\/)(node_modules|dist|out|build|coverage|\.git|\.vscode|\.fnthom)(\/|$)/;
 export const MAX_SOURCE_FILES = 400;
 export const MAX_SOURCE_BYTES = 1024 * 1024;
 

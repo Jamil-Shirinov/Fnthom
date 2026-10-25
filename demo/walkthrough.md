@@ -1,6 +1,6 @@
 # Tester walkthrough
 
-This guide takes you through the whole flow on the caching demo in about five minutes. The agent is a scripted fake (`humanCenteredAgent.useFakeAgent` is on by default). It proposes five functions and has two designs for each, so rejecting a function shows a real rework of the plan.
+This guide takes you through the whole flow on the caching demo in about five minutes. The agent is a scripted fake (`fnthom.useFakeAgent` is on by default). It proposes five functions and has two designs for each, so rejecting a function shows a real rework of the plan.
 
 ## Set up once
 
@@ -20,16 +20,16 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 2. Install the extension, either from a prebuilt file:
 
    ```bash
-   code --install-extension path/to/human-centered-agent-0.2.5.vsix --force
+   code --install-extension path/to/fnthom-0.3.0.vsix --force
    ```
 
-   or by building it from the repository root with `npm install && npm run package` (this writes `human-centered-agent-0.2.5.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
+   or by building it from the repository root with `npm install && npm run package` (this writes `fnthom-0.3.0.vsix` there). In VS Code you can also use **Extensions › ⋯ › Install from VSIX…**. Reload the window after installing over an older version.
 
 3. Open the `demo/app` folder itself in VS Code (`code .` from inside it), not the repository root. Trust the workspace when VS Code asks.
 
 ## Plan, implement, explore
 
-1. Press Cmd/Ctrl+Shift+P and run **Human-Centered Agent: Open Panel**. The panel opens beside the editor.
+1. Press Cmd/Ctrl+Shift+P and run **Fnthom: Open Panel**. The panel opens beside the editor.
 2. Optional: open the **Graph** tab to see the demo before any changes (createApp, the weather route, the mock provider, and the server entry point). The panel has two tabs, **Decisions** and **Graph**, and you can switch between them at any time.
 3. Keep the prefilled request and click **Plan it**. The first proposal appears: `createTtlCache`, with its purpose, how it works, its signature and file, and what calls it. The list below it shows the functions the agent expects to propose next.
 4. Click **✕ Rework…**, type a reason such as "memory has to stay bounded", and click **Rework**. The agent proposes `createLruCache` instead and explains what it changed. Look at the upcoming list: `createApp` now mentions an LRU cache and the tests add an eviction check.
@@ -48,7 +48,7 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 
 ## Start over
 
-**Reset** in the panel (or **Human-Centered Agent: Reset Session**) clears the session; source files are not touched. To restore the demo's files, run this from the repository root:
+**Reset** in the panel (or **Fnthom: Reset Session**) clears the session; source files are not touched. To restore the demo's files, run this from the repository root:
 
 ```bash
 npm run demo:reset

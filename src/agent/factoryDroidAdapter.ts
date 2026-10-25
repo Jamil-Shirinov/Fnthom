@@ -100,7 +100,7 @@ export class FactoryDroidAdapter implements AgentAdapter {
     }
 
     const prompt = [
-      "You are the Human-Centered Coding Agent's Factory Droid adapter.",
+      "You are the Fnthom Factory Droid adapter.",
       "Return raw JSON only. No markdown fences, commentary, or fenced code blocks.",
       "Use the exact schema expected by the application contract.",
       `${instruction}`,

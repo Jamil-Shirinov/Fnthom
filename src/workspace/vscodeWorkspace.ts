@@ -30,7 +30,7 @@ export class VsCodeWorkspace implements WorkspacePort {
   async listSourceFiles(): Promise<string[]> {
     const uris = await vscode.workspace.findFiles(
       new vscode.RelativePattern(this.root, "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"),
-      new vscode.RelativePattern(this.root, "**/{node_modules,dist,out,build,coverage,.git,.vscode,.human-centered-agent}/**"),
+      new vscode.RelativePattern(this.root, "**/{node_modules,dist,out,build,coverage,.git,.vscode,.fnthom}/**"),
       MAX_SOURCE_FILES * 2,
     );
     return uris
@@ -196,7 +196,7 @@ export class VsCodeWorkspace implements WorkspacePort {
   }
 
   checkDefinitions(): CheckDefinition[] {
-    const raw = vscode.workspace.getConfiguration("humanCenteredAgent", this.root).get<unknown[]>("checks", []);
+    const raw = vscode.workspace.getConfiguration("fnthom", this.root).get<unknown[]>("checks", []);
     return raw.flatMap((entry) => {
       const parsed = CheckDefinition.safeParse(entry);
       return parsed.success ? [parsed.data] : [];

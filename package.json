@@ -1,8 +1,8 @@
 {
-  "name": "human-centered-agent",
-  "displayName": "Human-Centered Coding Agent",
+  "name": "fnthom",
+  "displayName": "Fnthom",
   "description": "Plan features with an AI agent one function at a time, then see how your functions connect and jump to their code.",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "publisher": "calhacks-13",
   "private": true,
   "license": "MIT",
@@ -21,45 +21,45 @@
   "contributes": {
     "commands": [
       {
-        "command": "humanCenteredAgent.open",
+        "command": "fnthom.open",
         "title": "Open Panel",
-        "category": "Human-Centered Agent"
+        "category": "Fnthom"
       },
       {
-        "command": "humanCenteredAgent.setApiKey",
+        "command": "fnthom.setApiKey",
         "title": "Set Factory API Key",
-        "category": "Human-Centered Agent"
+        "category": "Fnthom"
       },
       {
-        "command": "humanCenteredAgent.export",
+        "command": "fnthom.export",
         "title": "Export Feature Reference",
-        "category": "Human-Centered Agent"
+        "category": "Fnthom"
       },
       {
-        "command": "humanCenteredAgent.resetSession",
+        "command": "fnthom.resetSession",
         "title": "Reset Session",
-        "category": "Human-Centered Agent"
+        "category": "Fnthom"
       }
     ],
     "configuration": {
-      "title": "Human-Centered Agent",
+      "title": "Fnthom",
       "properties": {
-        "humanCenteredAgent.droidExecutablePath": {
+        "fnthom.droidExecutablePath": {
           "type": "string",
           "default": "",
           "description": "Optional path to the droid CLI. Leave empty to discover it on PATH."
         },
-        "humanCenteredAgent.modelId": {
+        "fnthom.modelId": {
           "type": "string",
           "default": "",
           "description": "Optional Droid model ID. Leave empty to use the account's default model."
         },
-        "humanCenteredAgent.useFakeAgent": {
+        "fnthom.useFakeAgent": {
           "type": "boolean",
           "default": true,
           "description": "Use the scripted fake agent (it knows the caching demo in demo/app) instead of Factory Droid."
         },
-        "humanCenteredAgent.checks": {
+        "fnthom.checks": {
           "type": "array",
           "default": [],
           "description": "Checks the extension runs after writing the feature's code. Each entry: id, label, executable, args, cwd (workspace-relative), timeoutMs.",

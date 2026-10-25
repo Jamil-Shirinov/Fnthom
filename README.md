@@ -1,4 +1,4 @@
-# Human-centered coding agent
+# Fnthom
 
 A CalHacks project that helps developers understand AI-generated code through an interactive architecture map and conceptual implementation steps.
 
@@ -28,13 +28,13 @@ How it works: describe a feature, and the agent proposes it one function at a ti
 You need VS Code 1.90 or later and Node.js 20 or later.
 
 ```bash
-npm install && npm run package          # writes human-centered-agent-0.2.5.vsix
-code --install-extension human-centered-agent-0.2.5.vsix
+npm install && npm run package          # writes fnthom-0.3.0.vsix
+code --install-extension fnthom-0.3.0.vsix
 cd demo/app && npm install              # the demo's tests are the check the extension runs
 code .
 ```
 
-Then run **Human-Centered Agent: Open Panel** from the Command Palette and follow [the walkthrough](demo/walkthrough.md). The extension edits files in `demo/app`; run `npm run demo:reset` from the repository root to start over.
+Then run **Fnthom: Open Panel** from the Command Palette and follow [the walkthrough](demo/walkthrough.md). The extension edits files in `demo/app`; run `npm run demo:reset` from the repository root to start over.
 
 ## Develop
 
@@ -59,9 +59,9 @@ For a Windows shell:
 $env:FACTORY_API_KEY = "your-key-here"
 ```
 
-Or, in VS Code, run **Human-Centered Agent: Set Factory API Key** from the Command Palette. The extension reads the key from secret storage first, then from `FACTORY_API_KEY`.
+Or, in VS Code, run **Fnthom: Set Factory API Key** from the Command Palette. The extension reads the key from secret storage first, then from `FACTORY_API_KEY`.
 
-Press F5 in VS Code to open an Extension Development Host on `demo/app`, then run **Human-Centered Agent: Open Panel** from the Command Palette. The fake agent is on by default (`humanCenteredAgent.useFakeAgent`).
+Press F5 in VS Code to open an Extension Development Host on `demo/app`, then run **Fnthom: Open Panel** from the Command Palette. The fake agent is on by default (`fnthom.useFakeAgent`).
 
 ## Start here
 

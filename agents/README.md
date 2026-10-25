@@ -1,4 +1,4 @@
-# Human-centered coding agent: shared context
+# Fnthom: shared context
 
 This documentation makes the hackathon idea usable by teammates and their coding agents without requiring the original conversation or the file in the author's Downloads directory.
 

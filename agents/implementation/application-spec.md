@@ -32,14 +32,14 @@ The [product concept](../product.md) explains the rationale. This specification 
 
 ## 3. User experience
 
-Commands use the `humanCenteredAgent` prefix:
+Commands use the `fnthom` prefix:
 
 | Command | Behavior |
 | --- | --- |
-| `humanCenteredAgent.open` | Open or reveal the panel |
-| `humanCenteredAgent.setApiKey` | Collect the Factory key through a masked input and store it in secret storage |
-| `humanCenteredAgent.export` | Export the plan and graph as Markdown through a save dialog |
-| `humanCenteredAgent.resetSession` | Confirm discarding session metadata; never reset source files |
+| `fnthom.open` | Open or reveal the panel |
+| `fnthom.setApiKey` | Collect the Factory key through a masked input and store it in secret storage |
+| `fnthom.export` | Export the plan and graph as Markdown through a save dialog |
+| `fnthom.resetSession` | Confirm discarding session metadata; never reset source files |
 
 If no folder is open, show an actionable empty state. If several roots are open, require selection of one root. Require a trusted workspace before the agent reads the repository, before writing code, and before running checks.
 

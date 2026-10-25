@@ -30,7 +30,7 @@
 | Demo fixture | User decision (Oct 24) | API caching on a small weather endpoint in `demo/app/`; clearest hit/miss data flow and a simple schema invariant |
 | Fixture stack | User decision (Oct 24) | TypeScript + Express + Vitest, so the team uses one toolchain; a Zod response schema backs the "cached and uncached responses share a schema" invariant |
 | Build tooling | Working recommendation; implemented in MVP step 1 | esbuild bundles the host to `dist/`, Vite bundles the webview to `webview/dist/`, Vitest runs `tests/`; exact versions pinned in `package.json` |
-| Agent during development | Working recommendation; implemented in MVP step 1 | A deterministic fake adapter (`src/agent/fakeAdapter.ts`) serves the caching fixture until the real Droid adapter passes the proposal-only gate; the `humanCenteredAgent.useFakeAgent` setting defaults to true |
+| Agent during development | Working recommendation; implemented in MVP step 1 | A deterministic fake adapter (`src/agent/fakeAdapter.ts`) serves the caching fixture until the real Droid adapter passes the proposal-only gate; the `fnthom.useFakeAgent` setting defaults to true |
 | Step loop | Superseded (Oct 24) | The propose → preview → apply → check loop per step was replaced by planning first and implementing once; its edit validation, check runner and VS Code edit handling were kept |
 | Testing without VS Code | Working recommendation | VS Code cannot be downloaded in the cloud build sandbox, so the full loop is covered by Vitest on a copy of `demo/app` and by a stubbed-API smoke run of the bundled extension; real-editor testing happens on a teammate's machine from the `.vsix` |
 

@@ -1,6 +1,6 @@
 # Agent entry point
 
-This repository contains the CalHacks human-centered coding agent project. Read [agents/README.md](agents/README.md) first, then the relevant documents it links to before proposing or implementing changes.
+This repository contains Fnthom, the CalHacks human-centered coding agent project. Read [agents/README.md](agents/README.md) first, then the relevant documents it links to before proposing or implementing changes.
 
 ## Project direction
 

@@ -1,5 +1,5 @@
 {
-  "humanCenteredAgent.checks": [
+  "fnthom.checks": [
     {
       "id": "demo-tests",
       "label": "Weather API tests",

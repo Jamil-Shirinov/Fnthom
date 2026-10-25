@@ -13,7 +13,7 @@ import { ChangePreviewProvider } from "./workspace/preview";
 import { isSourcePath } from "./workspace/port";
 import { VsCodeWorkspace } from "./workspace/vscodeWorkspace";
 
-const SECRET_KEY = "humanCenteredAgent.factoryApiKey";
+const SECRET_KEY = "fnthom.factoryApiKey";
 
 export async function activate(context: vscode.ExtensionContext) {
   const root = await pickWorkspaceRoot();
@@ -48,10 +48,10 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     { dispose: () => agent.dispose() },
     previews.register(),
-    vscode.commands.registerCommand("humanCenteredAgent.open", () =>
+    vscode.commands.registerCommand("fnthom.open", () =>
       AgentPanel.show(context, { controller, workspace, previews, exportReference }),
     ),
-    vscode.commands.registerCommand("humanCenteredAgent.setApiKey", async () => {
+    vscode.commands.registerCommand("fnthom.setApiKey", async () => {
       const key = await vscode.window.showInputBox({
         title: "Factory API key",
         prompt: "Stored in VS Code secret storage; never written to files or sent to the panel.",
@@ -63,8 +63,8 @@ export async function activate(context: vscode.ExtensionContext) {
         void vscode.window.showInformationMessage("Factory API key saved.");
       }
     }),
-    vscode.commands.registerCommand("humanCenteredAgent.export", exportReference),
-    vscode.commands.registerCommand("humanCenteredAgent.resetSession", async () => {
+    vscode.commands.registerCommand("fnthom.export", exportReference),
+    vscode.commands.registerCommand("fnthom.resetSession", async () => {
       const choice = await vscode.window.showWarningMessage(
         "Discard the current session's plan and progress? Source files are not changed.",
         { modal: true },
@@ -98,7 +98,7 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 async function createAgent(context: vscode.ExtensionContext): Promise<AgentAdapter> {
-  const config = vscode.workspace.getConfiguration("humanCenteredAgent");
+  const config = vscode.workspace.getConfiguration("fnthom");
   const useFake = config.get<boolean>("useFakeAgent", true);
   const apiKey = (await context.secrets.get(SECRET_KEY)) ?? process.env.FACTORY_API_KEY?.trim() ?? "";
 
@@ -108,7 +108,7 @@ async function createAgent(context: vscode.ExtensionContext): Promise<AgentAdapt
 
   if (!apiKey) {
     void vscode.window.showWarningMessage(
-      "Factory API key is not configured; using the fake agent until you set it. Run 'Human-Centered Agent: Set Factory API Key' or set FACTORY_API_KEY in your shell.",
+      "Factory API key is not configured; using the fake agent until you set it. Run 'Fnthom: Set Factory API Key' or set FACTORY_API_KEY in your shell.",
     );
     return new FakeAgentAdapter();
   }
