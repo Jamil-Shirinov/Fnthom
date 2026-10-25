@@ -9,7 +9,7 @@ type Graph = Omit<CodeGraph, "builtAt">;
 /**
  * Accepted "new" proposals become planned nodes; accepted "change" proposals mark the existing node as a
  * planned change. Their `calls` and `calledBy` names become planned edges when they name a node in the graph.
- * Names like `ForecastCache.get` resolve to the planned function whose signature returns that type.
+ * Names like `ForecastCache.get` resolve to the function that returns that type, planned or existing.
  */
 export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
   const accepted = functions.filter((f) => f.status === "accepted");
@@ -39,6 +39,7 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
       purposeSource: "plan",
       status: "new",
       planned: true,
+      ...returnTypes(f.signature),
     };
     nodes.push(node);
     byId.set(node.id, node);
@@ -46,15 +47,9 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
   }
 
   const edges = new Map<string, GraphEdge>(graph.edges.map((e) => [e.id, e]));
-  const returnsType = (type: string) =>
-    accepted.filter((f) => new RegExp(`\\)\\s*:\\s*${escape(type)}\\b`).test(f.signature)).map((f) => planIds.get(f)!);
-
-  const resolve = (ref: string): { ids: string[]; kind: GraphEdge["kind"] } => {
-    const found = findNode(nodes, ref);
-    if (found) return { ids: [found.node.id], kind: found.via === "member" ? "dispatch" : "call" };
-    const name = cleanRef(ref);
-    const dot = name.lastIndexOf(".");
-    return { ids: dot > 0 ? returnsType(name.slice(0, dot)) : [], kind: "dispatch" };
+  const resolve = (ref: string, self: string): { ids: string[]; kind: GraphEdge["kind"] } => {
+    const found = findNode(nodes, ref, self);
+    return found ? { ids: [found.node.id], kind: found.via === "name" || found.via === "file" ? "call" : "dispatch" } : { ids: [], kind: "call" };
   };
 
   const add = (from: string, to: string, kind: GraphEdge["kind"]) => {
@@ -68,13 +63,13 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
   // A caller's own `calls` say how it calls (directly or through an interface), so they go first.
   for (const f of accepted) {
     for (const ref of f.calls) {
-      const { ids, kind } = resolve(ref);
+      const { ids, kind } = resolve(ref, planIds.get(f)!);
       for (const to of ids) add(planIds.get(f)!, to, kind);
     }
   }
   for (const f of accepted) {
     for (const ref of f.calledBy) {
-      for (const from of resolve(ref).ids) add(from, planIds.get(f)!, "call");
+      for (const from of resolve(ref, planIds.get(f)!).ids) add(from, planIds.get(f)!, "call");
     }
   }
   return { ...graph, nodes, edges: [...edges.values()] };
@@ -82,17 +77,34 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
 
 /**
  * The node a name from a plan refers to: a function or route with that name, a file's module node
- * (`server.ts`), or the member of `Type.member`. Shared with the panel, which links these names to code.
+ * (`server.ts`), or for `Type.member` the member itself or else the function that returns `Type`.
+ * `exclude` leaves out the function the name was written for. Shared with the panel, which links these names.
  */
-export function findNode(nodes: GraphNode[], ref: string): { node: GraphNode; via: "name" | "file" | "member" } | undefined {
+export function findNode(
+  nodes: GraphNode[],
+  ref: string,
+  exclude?: string,
+): { node: GraphNode; via: "name" | "file" | "member" | "returns" } | undefined {
   const name = cleanRef(ref);
-  const exact = nodes.filter((n) => n.name === name);
+  const candidates = nodes.filter((n) => n.id !== exclude);
+  const exact = candidates.filter((n) => n.name === name);
   if (exact.length) return { node: pick(exact), via: "name" };
-  const file = nodes.filter((n) => n.path.split("/").pop() === name && n.kind !== "function" && n.kind !== "method");
+  const file = candidates.filter((n) => n.path.split("/").pop() === name && n.kind !== "function" && n.kind !== "method");
   if (file.length) return { node: pick(file), via: "file" };
   const dot = name.lastIndexOf(".");
-  const member = dot > 0 ? nodes.filter((n) => n.name === name.slice(dot + 1)) : [];
-  return member.length ? { node: pick(member), via: "member" } : undefined;
+  if (dot <= 0) return undefined;
+  const member = candidates.filter((n) => n.name === name.slice(dot + 1));
+  if (member.length) return { node: pick(member), via: "member" };
+  const type = name.slice(0, dot);
+  const makers = candidates.filter((n) => n.kind !== "test" && n.returns?.includes(type));
+  return makers.length ? { node: pick(makers), via: "returns" } : undefined;
+}
+
+/** Type names at the start of a proposal's return type, e.g. `ForecastCache` in `(...): ForecastCache<V>`. */
+function returnTypes(signature: string): { returns?: string[] } {
+  const match = /\)\s*:\s*(.+)$/.exec(signature);
+  const names = match ? [...match[1]!.matchAll(/\b([A-Z][A-Za-z0-9_]*)/g)].map((m) => m[1]!) : [];
+  return names.length ? { returns: [...new Set(names)] } : {};
 }
 
 function cleanRef(ref: string): string {
@@ -102,8 +114,4 @@ function cleanRef(ref: string): string {
 /** Planned nodes win over existing ones with the same name, since the plan is what the user just decided. */
 function pick(candidates: GraphNode[]): GraphNode {
   return candidates.find((n) => n.planned) ?? candidates[0]!;
-}
-
-function escape(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -49,6 +49,8 @@ export function buildCodeGraph(files: SourceText[], options: { includeTests?: bo
   const owners = new Map<ts.Node, string>();
   /** Interface or type alias declarations, keyed to the functions whose return type includes them. */
   const implementers = new Map<ts.Node, Set<string>>();
+  /** Names of those declarations per graph node. */
+  const returns = new Map<string, Set<string>>();
   const edges = new Map<string, GraphEdge>();
   const skipped: string[] = [];
 
@@ -127,6 +129,9 @@ export function buildCodeGraph(files: SourceText[], options: { includeTests?: bo
     for (const typeDecl of namedTypeDeclarations(signature.getReturnType())) {
       if (!implementers.has(typeDecl)) implementers.set(typeDecl, new Set());
       implementers.get(typeDecl)!.add(id);
+      const name = (typeDecl as ts.InterfaceDeclaration | ts.TypeAliasDeclaration).name.text;
+      if (!returns.has(id)) returns.set(id, new Set());
+      returns.get(id)!.add(name);
     }
   }
 
@@ -218,7 +223,10 @@ export function buildCodeGraph(files: SourceText[], options: { includeTests?: bo
 
   const known = new Set(drafts.map((d) => d.id));
   return {
-    nodes: drafts.map((d) => ({ ...d, status: "unchanged" as const })),
+    nodes: drafts.map((d) => {
+      const types = returns.get(d.id);
+      return { ...d, ...(types ? { returns: [...types].sort() } : {}), status: "unchanged" as const };
+    }),
     edges: [...edges.values()].filter((e) => known.has(e.from) && known.has(e.to)),
     skipped,
   };

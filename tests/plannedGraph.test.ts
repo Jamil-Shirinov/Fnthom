@@ -31,4 +31,13 @@ describe("finding the function a name in a plan refers to", () => {
     expect(findNode(nodes, "createTtlCache")?.node.planned).toBe(true);
     expect(findNode(nodes, "nothingLikeThis")).toBeUndefined();
   });
+
+  it("sends Type.member names to the function that returns that type, but never to the function itself", () => {
+    const withTypes = [
+      { ...node("src/upstream.ts", "createMockUpstream", "function"), returns: ["WeatherUpstream"] },
+      { ...node("src/cachedUpstream.ts", "withCache", "function", true), returns: ["WeatherUpstream"] },
+    ];
+    expect(findNode(withTypes, "WeatherUpstream.get")).toMatchObject({ node: { name: "withCache" }, via: "returns" });
+    expect(findNode(withTypes, "WeatherUpstream.get", "src/cachedUpstream.ts#withCache")?.node.name).toBe("createMockUpstream");
+  });
 });

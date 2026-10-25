@@ -121,7 +121,7 @@ function ProposalCard(props: {
 }) {
   const { proposal, plan, nodes, guard, send, onShowInGraph, onShowUpcoming } = props;
   const related = (name: string) => {
-    const node = findNode(nodes, name)?.node;
+    const node = findNode(nodes, name, `${proposal.path}#${proposal.name}`)?.node;
     const upcoming = !node && plan.upcoming.some((u) => u.name === name);
     if (node && !(node.planned && node.status === "new")) {
       return (

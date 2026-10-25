@@ -150,6 +150,8 @@ export const GraphNode = z.object({
   purpose: z.string().optional(),
   purposeSource: z.enum(["plan", "comment", "agent"]).optional(),
   status: z.enum(["new", "changed", "unchanged"]),
+  /** Interfaces and type aliases the function returns, so `Type.method` names can point at the function that makes them. */
+  returns: z.array(z.string()).optional(),
   /** Accepted in the plan but not written yet: a new function has no code to open, a change is not applied. */
   planned: z.boolean().optional(),
 });
