@@ -35,6 +35,7 @@ button {
 button.primary { background: var(--button-bg); color: var(--button-fg); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.danger { background: var(--vscode-inputValidation-errorBackground, #5a1d1d); color: var(--fg); border: 1px solid var(--bad); }
+button.rerun { border: 1px solid var(--accent); }
 button.icon { background: none; padding: 0 4px; font-size: 16px; line-height: 1; color: var(--muted); }
 button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff); padding: 0; text-align: left; }

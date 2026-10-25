@@ -262,7 +262,7 @@ function ProposalCard(props: {
             <button type="submit" className="primary" disabled={busy || !question.trim()}>
               {questionPending ? "Asking…" : "Ask"}
             </button>
-            <button type="button" onClick={() => setAsking(false)} disabled={busy}>Close</button>
+            <button type="button" onClick={() => setAsking(false)} disabled={busy}>Cancel</button>
           </div>
         </form>
       )}
@@ -301,9 +301,11 @@ function ProposalCard(props: {
           <button type="button" className="danger" disabled={busy} onClick={() => setRejecting(true)}>
             ✕ Rework…
           </button>
-          <button type="button" disabled={busy} onClick={() => setAsking((open) => !open)}>
-            {asking ? "Close question" : "Ask a question…"}
-          </button>
+          {!asking && (
+            <button type="button" disabled={busy} onClick={() => setAsking(true)}>
+              Ask a question…
+            </button>
+          )}
         </div>
       )}
     </article>

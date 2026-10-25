@@ -50,7 +50,7 @@ export function ResultPanel(props: {
               </li>
             ))}
           </ul>
-          <button type="button" disabled={busy} onClick={() => send({ type: "rerunChecks", payload: guard })}>
+          <button type="button" className="rerun" disabled={busy} onClick={() => send({ type: "rerunChecks", payload: guard })}>
             Rerun checks
           </button>
         </>
