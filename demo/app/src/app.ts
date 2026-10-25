@@ -1,9 +1,12 @@
 import express from "express";
+import { createTtlCache, type ForecastCache } from "./cache";
+import { withCache } from "./cachedUpstream";
 import { WeatherResponse } from "./schema";
-import type { WeatherUpstream } from "./upstream";
+import type { Forecast, WeatherUpstream } from "./upstream";
 
-export function createApp(deps: { upstream: WeatherUpstream }) {
+export function createApp(deps: { upstream: WeatherUpstream; cache?: ForecastCache<Forecast> }) {
   const app = express();
+  const upstream = withCache(deps.upstream, deps.cache ?? createTtlCache<Forecast>({ ttlMs: 60_000 }));
 
   app.get("/api/weather/:city", async (req, res) => {
     const city = req.params.city.trim();
@@ -13,7 +16,7 @@ export function createApp(deps: { upstream: WeatherUpstream }) {
     }
 
     try {
-      const forecast = await deps.upstream.fetchForecast(city);
+      const forecast = await upstream.fetchForecast(city);
       const body = WeatherResponse.parse({ city, ...forecast, fetchedAt: new Date().toISOString() });
       res.json(body);
     } catch {

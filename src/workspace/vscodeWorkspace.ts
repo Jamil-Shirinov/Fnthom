@@ -2,14 +2,20 @@
 // and configured checks.
 
 import * as vscode from "vscode";
-import { CheckDefinition, type FileChange, type FileSnapshot } from "../shared/schema";
+import { CheckDefinition, type FileChange, type FileSnapshot, type PlannedFunction } from "../shared/schema";
 import { runCheckProcess } from "./checks";
 import { contentHash } from "./hash";
 import { IGNORED_DIR, MAX_SOURCE_FILES, isSourcePath, type ApplyFileOutcome, type CheckRun, type WorkspacePort } from "./port";
 
 const normalizeEol = (text: string) => text.replace(/\r\n/g, "\n");
 
+function languageForPath(path: string): string {
+  return /\.(tsx?|mts|cts)$/.test(path) ? "typescript" : "javascript";
+}
+
 export class VsCodeWorkspace implements WorkspacePort {
+  private readonly previews = new Map<string, Array<{ path: string; original: string; existed: boolean; uri: vscode.Uri }>>();
+
   constructor(private readonly root: vscode.Uri) {}
 
   uri(path: string) {
@@ -57,6 +63,74 @@ export class VsCodeWorkspace implements WorkspacePort {
     return paths.filter((path) => vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === this.uri(path).toString()));
   }
 
+  async previewFunction(proposal: PlannedFunction): Promise<void> {
+    if (this.previews.has(proposal.id)) return;
+    const entries: Array<{ path: string; original: string; existed: boolean; uri: vscode.Uri }> = [];
+    for (const file of proposal.preview ?? []) {
+      const uri = this.uri(file.path);
+      const exists = await this.fileExists(uri);
+      if (!exists) {
+        const document = await vscode.workspace.openTextDocument({ content: file.content, language: languageForPath(file.path) });
+        await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One, preview: false });
+        entries.push({ path: file.path, original: "", existed: false, uri: document.uri });
+        continue;
+      }
+      const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString()) ?? (await vscode.workspace.openTextDocument(uri));
+      if (document.isDirty) throw new Error(`Save or revert ${file.path} before previewing a proposed function.`);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), file.content);
+      if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not preview ${file.path}.`);
+      entries.push({ path: file.path, original: document.getText(), existed: true, uri: document.uri });
+    }
+    this.previews.set(proposal.id, entries);
+  }
+
+  async saveFunctionPreview(functionId: string): Promise<void> {
+    const previews = this.previews.get(functionId);
+    if (!previews) return;
+    for (const preview of previews) {
+      const document = await vscode.workspace.openTextDocument(preview.uri);
+      if (document.uri.scheme === "untitled") {
+        await vscode.workspace.fs.writeFile(this.uri(preview.path), new TextEncoder().encode(document.getText()));
+        await this.closePreviewDocument(document);
+      } else if (!await document.save()) {
+        throw new Error(`Could not save the preview for ${preview.path}.`);
+      }
+    }
+    this.previews.delete(functionId);
+  }
+
+  async discardFunctionPreview(functionId: string): Promise<void> {
+    const previews = this.previews.get(functionId);
+    if (!previews) return;
+    for (const preview of previews) {
+      const document = await vscode.workspace.openTextDocument(preview.uri);
+      if (preview.existed) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(preview.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), preview.original);
+        if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not remove the preview from ${preview.path}.`);
+        if (document.isDirty) await document.save();
+      } else {
+        await this.closePreviewDocument(document);
+      }
+    }
+    this.previews.delete(functionId);
+  }
+
+  private async closePreviewDocument(document: vscode.TextDocument): Promise<void> {
+    await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One, preview: false });
+    await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+  }
+
+  private async fileExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async apply(files: FileChange[]): Promise<ApplyFileOutcome[]> {
     const edit = new vscode.WorkspaceEdit();
     for (const file of files) {
@@ -67,6 +141,7 @@ export class VsCodeWorkspace implements WorkspacePort {
         const doc = await vscode.workspace.openTextDocument(uri);
         edit.replace(uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), file.newContent);
       }
+
     }
 
     let applied = false;

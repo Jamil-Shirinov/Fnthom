@@ -3,7 +3,7 @@
 
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
-import type { CheckDefinition, FileChange, FileSnapshot } from "../../src/shared/schema";
+import type { CheckDefinition, FileChange, FileSnapshot, PlannedFunction } from "../../src/shared/schema";
 import { runCheckProcess } from "../../src/workspace/checks";
 import { contentHash } from "../../src/workspace/hash";
 import { IGNORED_DIR, isSourcePath, type ApplyFileOutcome, type WorkspacePort } from "../../src/workspace/port";
@@ -49,6 +49,10 @@ export class NodeWorkspace implements WorkspacePort {
   async dirtyPaths(paths: string[]) {
     return paths.filter((p) => this.dirty.has(p));
   }
+
+  async previewFunction(_proposal: PlannedFunction): Promise<void> {}
+  async saveFunctionPreview(_functionId: string): Promise<void> {}
+  async discardFunctionPreview(_functionId: string): Promise<void> {}
 
   async apply(files: FileChange[]): Promise<ApplyFileOutcome[]> {
     const outcomes: ApplyFileOutcome[] = [];

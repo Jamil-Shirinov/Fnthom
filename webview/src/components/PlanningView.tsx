@@ -9,7 +9,7 @@ const KIND_LABEL: Record<PlannedFunction["kind"], string> = { function: "functio
 
 const BUSY_TEXT: Partial<Record<ApplicationState["phase"], string>> = {
   planning: "Planning the next function…",
-  reworking: "Reworking the plan around your rejection…",
+  reworking: "Reworking the plan around your rejection",
   implementing: "Everything is planned. Writing the code…",
   checking: "Code written. Running the checks…",
 };
@@ -44,7 +44,9 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
               <span className="decided__mark" aria-hidden="true">
                 {f.status === "accepted" ? "✓" : "✕"}
               </span>
-              <code>{f.name}</code>
+              <button type="button" className="link decided__name" onClick={() => send({ type: "openNode", payload: { nodeId: f.id } })}>
+                {f.name}
+              </button>
               <span className="decided__what">
                 {f.status === "accepted" ? f.purpose : `Reworked${f.rejectionReason ? `: “${f.rejectionReason}”` : ""}`}
               </span>
@@ -101,9 +103,10 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
         {proposal.change === "change" && <span className="chip chip--changed">changes existing code</span>}
         <code className="card__path">{proposal.path}</code>
       </div>
-      <h2 className="card__name">{proposal.name}</h2>
-      <pre className={`signature signature--${proposal.change}`}>{proposal.signature}</pre>
-      <p className="card__purpose">{proposal.purpose}</p>
+      <button type="button" className="link card__name" onClick={() => send({ type: "openNode", payload: { nodeId: proposal.id } })}>
+        {proposal.name}
+      </button>
+      <pre className={`signature signature--${proposal.change}`}><SignatureCode signature={proposal.signature} /></pre>
 
       {proposal.details.length > 0 && (
         <>
@@ -166,11 +169,53 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
             ✓ Accept
           </button>
           <button type="button" className="danger" onClick={() => setRejecting(true)}>
-            ✕ Rework…
+            ✕ Rework
           </button>
         </div>
       )}
-      <p className="hint">No code is written until every function is planned.</p>
+      <p className="hint">Generated code and tests are shown in the editor before you approve this function.</p>
     </article>
   );
+}
+
+function SignatureCode({ signature }: { signature: string }) {
+  const tokens: string[] = signature.match(/"[^"]*"|'[^']*'|`[^`]*`|[A-Za-z_$][\w$]*|\d+(?:\.\d+)?|=>|[{}()[\].,;:?<>:=/]|\s+|./g) ?? [];
+  const firstParen = tokens.findIndex((token) => token === "(");
+  const closeParen = firstParen < 0 ? -1 : tokens.lastIndexOf(")");
+  let parameterDepth = 0;
+  let seenReturnType = false;
+
+  return (
+    <>
+      {tokens.map((token, index) => {
+        if (token === "(" && firstParen === index) parameterDepth = 1;
+        else if (parameterDepth && token === "(") parameterDepth++;
+        else if (parameterDepth && token === ")") parameterDepth--;
+        if (token === ":" && closeParen >= 0 && index > closeParen) seenReturnType = true;
+
+        const previous = previousSignificant(tokens, index);
+        const next = nextSignificant(tokens, index);
+        const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(token);
+        let className = "signature__text";
+
+        if (/^["'`]/.test(token)) className = "signature__string";
+        else if (["export", "function", "async", "const", "let", "class", "return"].includes(token)) className = "signature__keyword";
+        else if (index === firstParen - 1) className = "signature__function";
+        else if (isIdentifier && parameterDepth > 0 && (next === ":" || next === "?" || previous === "?")) className = "signature__parameter";
+        else if (isIdentifier && (seenReturnType || previous === ":" || previous === "<" || next === ">")) className = "signature__type";
+
+        return <span key={`${index}-${token}`} className={className}>{token}</span>;
+      })}
+    </>
+  );
+}
+
+function previousSignificant(tokens: string[], index: number): string | undefined {
+  for (let i = index - 1; i >= 0; i -= 1) if (!/^\s+$/.test(tokens[i] ?? "")) return tokens[i];
+  return undefined;
+}
+
+function nextSignificant(tokens: string[], index: number): string | undefined {
+  for (let i = index + 1; i < tokens.length; i += 1) if (!/^\s+$/.test(tokens[i] ?? "")) return tokens[i];
+  return undefined;
 }

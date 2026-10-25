@@ -129,6 +129,9 @@ async function pickWorkspaceRoot(): Promise<vscode.Uri | undefined> {
 const noWorkspace = {
   snapshot: async () => [],
   dirtyPaths: async () => [],
+  previewFunction: async () => {},
+  saveFunctionPreview: async () => {},
+  discardFunctionPreview: async () => {},
   apply: async () => [],
   listSourceFiles: async () => [],
   checkDefinitions: () => [],

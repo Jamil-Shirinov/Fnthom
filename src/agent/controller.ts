@@ -104,12 +104,12 @@ export class SessionController {
 
   async acceptFunction(functionId: string, guard: Guard): Promise<void> {
     this.decide(functionId, guard, { functionId, decision: "accepted" });
-    await this.planTurn("planning");
+    await this.planTurn("planning", this.workspace.saveFunctionPreview(functionId));
   }
 
   async rejectFunction(functionId: string, reason: string | undefined, guard: Guard): Promise<void> {
     this.decide(functionId, guard, { functionId, decision: "rejected", ...(reason ? { reason } : {}) });
-    await this.planTurn("reworking");
+    await this.planTurn("reworking", this.workspace.discardFunctionPreview(functionId));
   }
 
   private decide(functionId: string, guard: Guard, decision: Decision) {
@@ -132,10 +132,11 @@ export class SessionController {
     });
   }
 
-  private async planTurn(busyPhase: "planning" | "reworking"): Promise<void> {
+  private async planTurn(busyPhase: "planning" | "reworking", preparation?: Promise<void>): Promise<void> {
     const operationId = this.begin({ phase: busyPhase });
     const intent = this.intent;
     try {
+      await preparation;
       const files = await this.sourceSnapshots();
       await this.refreshPlannedGraph(operationId, files);
       const context = contextOf(files);
@@ -162,6 +163,7 @@ export class SessionController {
         }
         return this.implement(operationId);
       }
+      await this.workspace.previewFunction({ ...turn.next, status: "proposed" });
       this.update({ plan, phase: "reviewing", operationId: null });
     } catch (err) {
       if (this.superseded(operationId)) return;
@@ -206,7 +208,17 @@ export class SessionController {
         );
       }
       const current = await this.workspace.snapshot(paths);
-      const issues = validateChanges(files, current);
+      const normalizedFiles = files.map((file) => {
+        if (file.kind !== "create") return file;
+        const existing = current.find((snapshot) => snapshot.path === file.path);
+        return existing?.exists ? { kind: "update" as const, path: file.path, baseHash: existing.contentHash, newContent: file.newContent } : file;
+      });
+      const acceptedPreviewPaths = new Set(
+        plan.functions
+          .filter((fn) => fn.status === "accepted")
+          .flatMap((fn) => (fn.preview ?? []).filter((preview) => preview.content === normalizedFiles.find((file) => file.path === preview.path)?.newContent).map((preview) => preview.path)),
+      );
+      const issues = validateChanges(normalizedFiles, current, acceptedPreviewPaths);
       if (issues.length) {
         const stale = issues.every((i) => i.kind === "stale");
         return this.attention(
@@ -225,7 +237,7 @@ export class SessionController {
       this.writing = true;
       let outcomes;
       try {
-        outcomes = await this.workspace.apply(files);
+        outcomes = await this.workspace.apply(normalizedFiles);
       } finally {
         this.writing = false;
       }

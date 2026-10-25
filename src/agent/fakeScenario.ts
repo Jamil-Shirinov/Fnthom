@@ -3,7 +3,7 @@
 // rewrites the rest of the plan to match, so the accept/reject loop can be demonstrated without a model.
 // The generated code is assembled from the chosen designs; every combination typechecks and passes its tests.
 
-import type { FileChange, FileSnapshot, FunctionProposal, PlannedFunction, UpcomingFunction } from "../shared/schema";
+import type { FileChange, FileSnapshot, FunctionProposal, PlannedFunction, ProposalPreview, UpcomingFunction } from "../shared/schema";
 
 export const STEP_KEYS = ["store", "key", "wiring", "app", "tests"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
@@ -56,6 +56,7 @@ export function proposalFor(step: StepKey, c: Choices): Draft {
             calls: [],
             calledBy: [c.wiring === 0 ? "withCache" : "GET /api/weather/:city"],
           }
+
         : {
             name: "createLruCache",
             kind: "function",
@@ -177,6 +178,13 @@ function testNames(c: Choices): string[] {
   }
   if (c.key === 1) names.push("\"Zürich\" and \"Zurich\" share one cache entry.");
   return names;
+}
+
+export function previewFor(step: StepKey, c: Choices, context: FileSnapshot[]): ProposalPreview[] {
+  const generated = filesFor(c, context);
+  const targetPath = proposalFor(step, c).path;
+  const files = generated.filter((file) => file.path === targetPath || file.path === "test/cache.test.ts");
+  return files.map((file) => ({ path: file.path, content: file.newContent }));
 }
 
 export function upcomingAfter(index: number, c: Choices): UpcomingFunction[] {

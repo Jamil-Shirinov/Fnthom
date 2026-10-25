@@ -26,6 +26,12 @@ export type WorkspacePath = z.infer<typeof WorkspacePath>;
 export const FunctionKind = z.enum(["function", "module", "route", "test"]);
 export type FunctionKind = z.infer<typeof FunctionKind>;
 
+export const ProposalPreview = z.object({
+  path: WorkspacePath,
+  content: z.string(),
+});
+export type ProposalPreview = z.infer<typeof ProposalPreview>;
+
 /** One function or module the agent proposes, before any code is written. */
 export const FunctionProposal = z.object({
   id,
@@ -42,6 +48,8 @@ export const FunctionProposal = z.object({
   calls: z.array(z.string()),
   /** Names of the functions that will call it. */
   calledBy: z.array(z.string()),
+  /** Full generated file contents shown for review before the proposal is accepted. */
+  preview: z.array(ProposalPreview).min(1).optional(),
   /** The rejected proposal this one replaces, when it is a rework. */
   replacesId: id.optional(),
 });

@@ -154,15 +154,25 @@ export class AgentPanel implements vscode.Disposable {
 
   /** Opens the function in its own editor tab and highlights its lines. */
   private async openNode(nodeId: string) {
-    const node = this.controller.getState().graph?.nodes.find((n) => n.id === nodeId);
+    const state = this.controller.getState();
+    const node = state.graph?.nodes.find((n) => n.id === nodeId);
     const workspace = this.services.workspace;
-    if (!workspace || !node) throw new Error("That function is no longer in the graph.");
-    if (node.planned && node.status === "new") return; // planned, so there is no code to open yet
+    if (!workspace) throw new Error("Open a workspace before opening a function.");
+    const proposal = state.plan?.functions.find((f) => f.id === nodeId);
+    if (!node && !proposal) throw new Error("That function is no longer in the plan or graph.");
 
-    const doc = await vscode.workspace.openTextDocument(workspace.uri(node.path));
+    const path = node?.path ?? proposal!.path;
+    const name = node?.name ?? proposal!.name;
+    const previewDocument = proposal
+      ? vscode.workspace.textDocuments.find((candidate) => candidate.isDirty && candidate.getText().includes(name))
+      : undefined;
+    const doc = previewDocument ?? (await vscode.workspace.openTextDocument(workspace.uri(path)));
+    const lineIndex = node
+      ? Math.min(node.startLine - 1, doc.lineCount - 1)
+      : Math.max(0, doc.getText().split(/\r?\n/).findIndex((line) => line.includes(name)));
     // Serialized lines are one-based and inclusive; editor positions are zero-based.
-    const last = Math.min(node.endLine, doc.lineCount) - 1;
-    const first = Math.min(node.startLine - 1, last);
+    const last = node ? Math.min(node.endLine, doc.lineCount) - 1 : lineIndex;
+    const first = Math.min(lineIndex, last);
     const range = new vscode.Range(first, 0, last, doc.lineAt(last).text.length);
     const editor = await vscode.window.showTextDocument(doc, {
       viewColumn: vscode.ViewColumn.One,
