@@ -291,7 +291,6 @@ function ProposalCard(props: {
           </button>
         </div>
       )}
-      <p className="hint">Generated code and tests are shown in the editor before you approve this function.</p>
     </article>
   );
 }
