@@ -9,8 +9,8 @@ You need VS Code 1.90 or later and Node.js 20 or later, with `npm` on your PATH.
 1. Get the repository and install the demo's dependencies:
 
    ```bash
-   git clone https://github.com/Jamil-Shirinov/calhacks-13.0.git   # or: git pull in your existing clone
-   cd calhacks-13.0/demo/app
+   git clone https://github.com/Jamil-Shirinov/Fnthom.git   # or: git pull in your existing clone
+   cd Fnthom/demo/app
    npm install
    npm test      # 3 tests pass on the baseline
    ```
