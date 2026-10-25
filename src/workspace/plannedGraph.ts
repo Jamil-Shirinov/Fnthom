@@ -50,18 +50,11 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
     accepted.filter((f) => new RegExp(`\\)\\s*:\\s*${escape(type)}\\b`).test(f.signature)).map((f) => planIds.get(f)!);
 
   const resolve = (ref: string): { ids: string[]; kind: GraphEdge["kind"] } => {
-    const name = ref.replace(/\(\)$/, "").trim();
-    const exact = nodes.filter((n) => n.name === name);
-    if (exact.length) return { ids: [pick(exact).id], kind: "call" };
-    const file = nodes.filter((n) => n.path.split("/").pop() === name && n.kind !== "function" && n.kind !== "method");
-    if (file.length) return { ids: [pick(file).id], kind: "call" };
+    const found = findNode(nodes, ref);
+    if (found) return { ids: [found.node.id], kind: found.via === "member" ? "dispatch" : "call" };
+    const name = cleanRef(ref);
     const dot = name.lastIndexOf(".");
-    if (dot > 0) {
-      const member = nodes.filter((n) => n.name === name.slice(dot + 1));
-      if (member.length) return { ids: [pick(member).id], kind: "dispatch" };
-      return { ids: returnsType(name.slice(0, dot)), kind: "dispatch" };
-    }
-    return { ids: [], kind: "call" };
+    return { ids: dot > 0 ? returnsType(name.slice(0, dot)) : [], kind: "dispatch" };
   };
 
   const add = (from: string, to: string, kind: GraphEdge["kind"]) => {
@@ -85,6 +78,25 @@ export function projectPlan(graph: Graph, functions: PlannedFunction[]): Graph {
     }
   }
   return { ...graph, nodes, edges: [...edges.values()] };
+}
+
+/**
+ * The node a name from a plan refers to: a function or route with that name, a file's module node
+ * (`server.ts`), or the member of `Type.member`. Shared with the panel, which links these names to code.
+ */
+export function findNode(nodes: GraphNode[], ref: string): { node: GraphNode; via: "name" | "file" | "member" } | undefined {
+  const name = cleanRef(ref);
+  const exact = nodes.filter((n) => n.name === name);
+  if (exact.length) return { node: pick(exact), via: "name" };
+  const file = nodes.filter((n) => n.path.split("/").pop() === name && n.kind !== "function" && n.kind !== "method");
+  if (file.length) return { node: pick(file), via: "file" };
+  const dot = name.lastIndexOf(".");
+  const member = dot > 0 ? nodes.filter((n) => n.name === name.slice(dot + 1)) : [];
+  return member.length ? { node: pick(member), via: "member" } : undefined;
+}
+
+function cleanRef(ref: string): string {
+  return ref.replace(/\(\)$/, "").trim();
 }
 
 /** Planned nodes win over existing ones with the same name, since the plan is what the user just decided. */

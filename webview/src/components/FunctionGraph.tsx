@@ -60,9 +60,10 @@ type FunctionNodeData = {
   hue: number;
   selected: boolean;
   dimmed: boolean;
-  calls: string[];
-  calledBy: string[];
+  calls: GraphNode[];
+  calledBy: GraphNode[];
   onOpen: () => void;
+  onJump: (node: GraphNode) => void;
   onClose: () => void;
 };
 type FunctionFlowNode = Node<FunctionNodeData, "fn">;
@@ -107,12 +108,12 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
         )}
         {data.calls.length > 0 && (
           <div className="popup__rel">
-            <span>Calls</span> {data.calls.join(", ")}
+            <span>Calls</span> <NodeLinks nodes={data.calls} onJump={data.onJump} />
           </div>
         )}
         {data.calledBy.length > 0 && (
           <div className="popup__rel">
-            <span>Called by</span> {data.calledBy.join(", ")}
+            <span>Called by</span> <NodeLinks nodes={data.calledBy} onJump={data.onJump} />
           </div>
         )}
         {unwritten ? (
@@ -127,6 +128,22 @@ function FunctionNodeView({ data }: NodeProps<FunctionFlowNode>) {
         )}
       </NodeToolbar>
     </div>
+  );
+}
+
+/** Names in a pop-up that move the selection to that function and open its code. */
+function NodeLinks(props: { nodes: GraphNode[]; onJump: (node: GraphNode) => void }) {
+  return (
+    <>
+      {props.nodes.map((n, i) => (
+        <span key={n.id}>
+          {i > 0 && ", "}
+          <button type="button" className="code-link" title={`${n.path}:${n.startLine}`} onClick={(e) => (e.stopPropagation(), props.onJump(n))}>
+            {n.name}
+          </button>
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -151,7 +168,7 @@ export function FunctionGraph(props: {
   const files = useMemo(() => [...new Set(graph.nodes.map((n) => n.path))].sort(), [graph]);
 
   const nodes = useMemo<FunctionFlowNode[]>(() => {
-    const name = new Map(graph.nodes.map((n) => [n.id, n.name]));
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     const neighbors = new Set(
       selectedId ? visible.edges.flatMap((e) => (e.from === selectedId ? [e.to] : e.to === selectedId ? [e.from] : [])) : [],
     );
@@ -164,9 +181,13 @@ export function FunctionGraph(props: {
         hue: fileHue(node.path, files),
         selected: node.id === selectedId,
         dimmed: !!selectedId && node.id !== selectedId && !neighbors.has(node.id),
-        calls: visible.edges.filter((e) => e.from === node.id).map((e) => name.get(e.to) ?? e.to),
-        calledBy: visible.edges.filter((e) => e.to === node.id).map((e) => name.get(e.from) ?? e.from),
+        calls: visible.edges.filter((e) => e.from === node.id).flatMap((e) => byId.get(e.to) ?? []),
+        calledBy: visible.edges.filter((e) => e.to === node.id).flatMap((e) => byId.get(e.from) ?? []),
         onOpen: () => onOpen(node.id),
+        onJump: (target) => {
+          onSelect(target.id);
+          if (!(target.planned && target.status === "new")) onOpen(target.id);
+        },
         onClose: () => onSelect(null),
       },
       draggable: true,

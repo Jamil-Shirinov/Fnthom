@@ -28,8 +28,8 @@ How it works: describe a feature, and the agent proposes it one function at a ti
 You need VS Code 1.90 or later and Node.js 20 or later.
 
 ```bash
-npm install && npm run package          # writes human-centered-agent-0.1.7.vsix
-code --install-extension human-centered-agent-0.1.7.vsix
+npm install && npm run package          # writes human-centered-agent-0.1.8.vsix
+code --install-extension human-centered-agent-0.1.8.vsix
 cd demo/app && npm install              # the demo's tests are the check the extension runs
 code .
 ```

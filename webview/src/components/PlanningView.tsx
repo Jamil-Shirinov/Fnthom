@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { ApplicationState, FeaturePlan, PlannedFunction } from "../../../src/shared/schema";
+import type { ApplicationState, FeaturePlan, GraphNode, PlannedFunction } from "../../../src/shared/schema";
 import { currentProposal } from "../../../src/shared/schema";
+import { findNode } from "../../../src/workspace/plannedGraph";
 import type { UiActionInput } from "../vscode";
 
 type Send = (action: UiActionInput) => void;
@@ -63,7 +64,9 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
         </div>
       ) : (
         proposal &&
-        state.phase === "reviewing" && <ProposalCard key={proposal.id} proposal={proposal} plan={plan!} guard={guard} send={send} />
+        state.phase === "reviewing" && (
+          <ProposalCard key={proposal.id} proposal={proposal} plan={plan!} nodes={state.graph?.nodes ?? []} guard={guard} send={send} />
+        )
       )}
 
       {plan && plan.upcoming.length > 0 && (
@@ -82,8 +85,15 @@ export function PlanningView(props: { state: ApplicationState; plan: FeaturePlan
   );
 }
 
-function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; guard: { sessionId: string; expectedRevision: number }; send: Send }) {
-  const { proposal, plan, guard, send } = props;
+function ProposalCard(props: {
+  proposal: PlannedFunction;
+  plan: FeaturePlan;
+  nodes: GraphNode[];
+  guard: { sessionId: string; expectedRevision: number };
+  send: Send;
+}) {
+  const { proposal, plan, nodes, guard, send } = props;
+  const related = (name: string) => <RelatedName key={name} name={name} node={findNode(nodes, name)?.node} send={send} />;
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const replaced = proposal.replacesId ? plan.functions.find((f) => f.id === proposal.replacesId) : undefined;
@@ -122,9 +132,7 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
             <>
               <dt>Called by</dt>
               <dd>
-                {proposal.calledBy.map((n) => (
-                  <code key={n}>{n}</code>
-                ))}
+                {proposal.calledBy.map(related)}
               </dd>
             </>
           )}
@@ -132,9 +140,7 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
             <>
               <dt>Calls</dt>
               <dd>
-                {proposal.calls.map((n) => (
-                  <code key={n}>{n}</code>
-                ))}
+                {proposal.calls.map(related)}
               </dd>
             </>
           )}
@@ -171,5 +177,23 @@ function ProposalCard(props: { proposal: PlannedFunction; plan: FeaturePlan; gua
         </div>
       )}
     </article>
+  );
+}
+
+/** A function name that opens its code in the editor, when the code exists yet. */
+function RelatedName(props: { name: string; node: GraphNode | undefined; send: Send }) {
+  const { name, node, send } = props;
+  if (!node || (node.planned && node.status === "new")) {
+    return <code title={node ? "Planned, not written yet" : undefined}>{name}</code>;
+  }
+  return (
+    <button
+      type="button"
+      className="code-link"
+      title={`Open ${node.path}:${node.startLine}`}
+      onClick={() => send({ type: "openNode", payload: { nodeId: node.id } })}
+    >
+      {name}
+    </button>
   );
 }
