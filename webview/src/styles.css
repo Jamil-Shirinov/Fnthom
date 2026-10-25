@@ -48,9 +48,6 @@ button.link { background: none; color: var(--vscode-textLink-foreground, #3794ff
   background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); border-radius: 2px;
 }
 .intent__actions { display: flex; gap: 8px; }
-.status { color: var(--muted); }
-.status strong { color: var(--fg); }
-.status__preview { margin-left: 12px; padding: 1px 6px; border: 1px dashed var(--border); border-radius: 8px; font-size: 11px; }
 .error { color: var(--bad); }
 .attention {
   display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 12px;

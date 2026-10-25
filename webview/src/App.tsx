@@ -6,17 +6,6 @@ import { PlanningView } from "./components/PlanningView";
 import { ResultPanel } from "./components/ResultPanel";
 import type { Bridge, UiActionInput } from "./vscode";
 
-const PHASE_LABEL: Record<Phase, string> = {
-  idle: "Ready",
-  planning: "Planning",
-  reviewing: "Reviewing",
-  reworking: "Reworking the plan",
-  implementing: "Writing the code",
-  checking: "Running checks",
-  done: "Done",
-  needsAttention: "Needs attention",
-};
-
 /** Phases where switching to the Graph tab rebuilds the graph first, so it reflects the latest code and plan. */
 const REFRESH_PHASES: ReadonlySet<Phase> = new Set(["idle", "reviewing", "done"]);
 
@@ -121,11 +110,6 @@ export function App({ bridge }: { bridge: Bridge }) {
             )}
           </div>
         </form>
-        <div className="status" role="status" aria-live="polite">
-          <strong>{PHASE_LABEL[state.phase]}</strong>
-          {busy && latest && <span className="status__activity"> {"·"} {latest}</span>}
-          {bridge.isPreview && <span className="status__preview">Browser preview with the scripted demo agent</span>}
-        </div>
         {error && (
           <div className="error" role="alert">
             {error}
